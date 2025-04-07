@@ -1,1 +1,1 @@
-wasap guys 
+init auth
