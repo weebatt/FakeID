@@ -1,0 +1,16 @@
+env: 'dev'
+
+http_server:
+  host: 'localhost'
+  port: 8080
+
+mongo:
+  uri: 'mongodb://localhost:27017'
+  database: 'fakeid'
+  username: 'fakeid'
+  password: 'devmongofakeid'
+  timeout: 5
+  pool_size: 100
+  max_conn_idle: 10
+  max_conn_open: 50
+  conn_lifetime: 30
