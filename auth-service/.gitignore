@@ -1,5 +1,5 @@
 #directories
-.idea
+../.idea
 
 #files
 .env
