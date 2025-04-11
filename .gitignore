@@ -2,4 +2,4 @@
 .idea
 
 #files
-.env
+task-service/.env
