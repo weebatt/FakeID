@@ -1,0 +1,6 @@
+#directories
+.idea
+
+#files
+task-service/.env
+auth-service/.env

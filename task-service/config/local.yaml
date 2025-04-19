@@ -1,0 +1,20 @@
+env: 'dev'
+
+http_server:
+  host: 'localhost'
+  port: 8080
+  max_retries: 5
+  retry_delay: 5
+
+#TODO
+pgdb:
+  host: 'localhost'
+  port: 5432
+  user: 'postgres'
+  password: 'secret-key-for-db'
+  database: 'fakeid'
+  min_conns: 10
+  max_conns: 50
+  timeout: 5
+  max_retries: 5
+  retry_delay: 3
