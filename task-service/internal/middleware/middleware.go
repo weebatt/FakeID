@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"task-service/pkg/logger"
 	"time"
 
 	"github.com/google/uuid"
@@ -51,27 +52,37 @@ func RequestLogger() echo.MiddlewareFunc {
 			start := time.Now()
 			err := next(c)
 			stop := time.Since(start)
-
 			ctx := c.Request().Context()
 			logger := GetLoggerFromCtx(ctx)
-
-			logger.Infow("request completed",
+			fields := []interface{}{
 				"status", c.Response().Status,
 				"latency", stop.String(),
-			)
-
+			}
+			if err != nil {
+				fields = append(fields, "error", err.Error())
+				logger.Errorw("Request failed", fields...)
+			} else {
+				logger.Infow("Request completed", fields...)
+			}
 			return err
 		}
 	}
 }
 
 func GetLoggerFromCtx(ctx context.Context) *zap.SugaredLogger {
-	logger, ok := ctx.Value(LoggerKey).(*zap.SugaredLogger)
+	log, ok := ctx.Value(LoggerKey).(*zap.SugaredLogger)
 	if !ok {
-		return zap.NewNop().Sugar()
+		l, err := logger.New("prod")
+		if err != nil {
+			l, _ := zap.NewProduction()
+			log = l.Sugar()
+			log.Warn("Failed to create fallback logger, using minimal logger")
+		} else {
+			log = l.SugaredLogger
+			log.Warn("Logger not found in context, using fallback prod logger")
+		}
 	}
-
-	return logger
+	return log
 }
 
 func GetRequestIDFromCtx(ctx context.Context) string {

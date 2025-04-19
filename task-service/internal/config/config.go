@@ -1,53 +1,66 @@
 package config
 
 import (
-	"flag"
 	"fmt"
-	"os"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/ilyakaznacheev/cleanenv"
 )
 
 type HTTPServer struct {
-	Host string `yaml:"host" env:"HOST" env-default:"localhost" validate:"required"`
-	Port string `yaml:"port" env:"PORT" env-default:"8080" validate:"required,numeric"`
+	Host       string `yaml:"host" env:"HOST" env-default:"localhost" validate:"required"`
+	Port       string `yaml:"port" env:"PORT" env-default:"8080" validate:"required,numeric"`
+	MaxRetries int    `yaml:"max_retries" env:"MAX_RETRIES" env-default:"5" validate:"gte=1"`
+	RetryDelay int    `yaml:"retry_delay" env:"RETRY_DELAY" env-default:"5" validate:"gte=1"`
 }
 
-type MongoConfig struct {
-	URI          string `yaml:"uri" env:"MONGO_URI" env-default:"mongodb://localhost:27017" validate:"required,uri"`
-	Database     string `yaml:"database" env:"MONGO_DATABASE" env-default:"myapp" validate:"required"`
-	Username     string `yaml:"username" env:"MONGO_USERNAME" env-default:""`
-	Password     string `yaml:"password" env:"MONGO_PASSWORD" env-default:""`
-	Timeout      int    `yaml:"timeout" env:"MONGO_TIMEOUT" env-default:"5" validate:"gte=1"`
-	PoolSize     uint64 `yaml:"pool_size" env:"MONGO_POOL_SIZE" env-default:"100" validate:"gte=1"`
-	MaxConnIdle  int    `yaml:"max_conn_idle" env:"MONGO_MAX_CONN_IDLE" env-default:"10" validate:"gte=1"`
-	MaxConnOpen  int    `yaml:"max_conn_open" env:"MONGO_MAX_CONN_OPEN" env-default:"50" validate:"gte=1"`
-	ConnLifetime int    `yaml:"conn_lifetime" env:"MONGO_CONN_LIFETIME" env-default:"30" validate:"gte=1"`
+type PostgresConfig struct {
+	Host       string `yaml:"host" env:"PG_HOST" env-default:"localhost" validate:"required"`
+	Port       string `yaml:"port" env:"PG_PORT" env-default:"5432" validate:"required,numeric"`
+	User       string `yaml:"user" env:"PG_USER" env-default:"postgres" validate:"required"`
+	Password   string `yaml:"password" env:"PG_PASSWORD" env-default:""`
+	DBName     string `yaml:"dbname" env:"PG_DBNAME" env-default:"postgres" validate:"required"`
+	SSLMode    string `yaml:"sslmode" env:"PG_SSLMODE" env-default:"disable" validate:"oneof=disable require"`
+	MaxConns   int32  `yaml:"max_conns" env:"PG_MAX_CONNS" env-default:"50" validate:"gte=1"`
+	MinConns   int32  `yaml:"min_conns" env:"PG_MIN_CONNS" env-default:"10" validate:"gte=1"`
+	Timeout    int    `yaml:"timeout" env:"PG_TIMEOUT" env-default:"5" validate:"gte=1"`
+	MaxRetries int    `yaml:"max_retries" env:"PG_MAX_RETRIES" env-default:"5" validate:"gte=1"`
+	RetryDelay int    `yaml:"retry_delay" env:"PG_RETRY_DELAY" env-default:"2" validate:"gte=1"`
+}
+
+type RedisConfig struct {
+	Host       string `yaml:"host" env:"REDIS_HOST" env-default:"localhost" validate:"required"`
+	Port       string `yaml:"port" env:"REDIS_PORT" env-default:"6379" validate:"required,numeric"`
+	Timeout    int    `yaml:"timeout" env:"REDIS_TIMEOUT" env-default:"5" validate:"gte=1"`
+	MaxRetries int    `yaml:"max_retries" env:"REDIS_MAX_RETRIES" env-default:"5" validate:"gte=1"`
+	RetryDelay int    `yaml:"retry_delay" env:"REDIS_RETRY_DELAY" env-default:"3" validate:"gte=1"`
+}
+
+type KafkaConfig struct {
+	Brokers    string `yaml:"brokers" env:"KAFKA_BROKERS" env-default:"kafka:9092" validate:"required"`
+	Topic      string `yaml:"topic" env:"KAFKA_TOPIC" env-default:"tasks" validate:"required"`
+	MaxRetries int    `yaml:"max_retries" env:"KAFKA_MAX_RETRIES" env-default:"5" validate:"gte=1"`
+	RetryDelay int    `yaml:"retry_delay" env:"KAFKA_RETRY_DELAY" env-default:"3" validate:"gte=1"`
+	Timeout    int    `yaml:"timeout" env:"KAFKA_TIMEOUT" env-default:"5" validate:"gte=1"`
 }
 
 type Config struct {
-	Env        string      `yaml:"env" env:"ENV" env-default:"prod" validate:"oneof=dev prod test"`
-	HTTPServer HTTPServer  `yaml:"http_server" validate:"required"`
-	Mongo      MongoConfig `yaml:"mongo" validate:"required"`
+	Env        string         `yaml:"env" env:"ENV" env-default:"prod" validate:"oneof=dev prod test"`
+	HTTPServer HTTPServer     `yaml:"http_server" validate:"required"`
+	Postgres   PostgresConfig `yaml:"postgres" validate:"required"`
+	Redis      RedisConfig    `yaml:"redis" validate:"required"`
+	Kafka      KafkaConfig    `yaml:"kafka" validate:"required"`
 }
 
 func New() (*Config, error) {
-	configPath := os.Getenv("CONFIG_PATH")
-	if configPath == "" {
-		flag.StringVar(&configPath, "config", "./config/local.yaml", "path to config file")
-		flag.Parse()
-	}
-
-	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		return nil, fmt.Errorf("config file does not exist: %s", configPath)
-	}
-
 	var cfg Config
-	if err := cleanenv.ReadConfig(configPath, &cfg); err != nil {
-		return nil, fmt.Errorf("failed to read config: %w", err)
+
+	// Читаем конфигурацию из переменных окружения
+	if err := cleanenv.ReadEnv(&cfg); err != nil {
+		return nil, fmt.Errorf("failed to read config from env: %w", err)
 	}
 
+	// Валидация конфигурации
 	validate := validator.New()
 	if err := validate.Struct(&cfg); err != nil {
 		return nil, fmt.Errorf("failed to validate config: %w", err)
