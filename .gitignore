@@ -3,3 +3,4 @@
 
 #files
 task-service/.env
+auth-service/.env
