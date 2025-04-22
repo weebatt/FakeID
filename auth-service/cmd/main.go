@@ -5,6 +5,7 @@ import (
 	database "fake_id/internal/db"
 	"fake_id/internal/handlers"
 	"fake_id/internal/middleware"
+	"fake_id/internal/redis"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/gommon/log"
 	"net/http"
@@ -23,6 +24,13 @@ func main() {
 		log.Fatal("Failed to connect to database:", err)
 	}
 	defer db.DB.Close()
+
+	// Initialize Redis
+	redisClient, err := redis.NewRedis(cfg.Redis.Addr, cfg.Redis.Password, cfg.Redis.DB)
+	if err != nil {
+		log.Fatal("Failed to connect to Redis:", err)
+	}
+	defer redisClient.Close()
 
 	r := echo.New()
 	if cfg.Environment == "production" {
@@ -52,8 +60,8 @@ func main() {
 		}
 	})
 
-	// Initialize handlers with JWT configuration
-	authHandler := handlers.NewAuthHandler(db, []byte(cfg.JWT.Secret))
+	// Initialize handlers with JWT configuration and Redis
+	authHandler := handlers.NewAuthHandler(db, redisClient, []byte(cfg.JWT.Secret), cfg.JWT.TokenExpiry)
 
 	// Public routes
 	public := r.Group("/api/v1")
@@ -64,7 +72,7 @@ func main() {
 
 	// Protected routes with JWT middleware
 	protected := r.Group("/api/v1")
-	protected.Use(middleware.AuthMiddleware([]byte(cfg.JWT.Secret)))
+	protected.Use(middleware.AuthMiddleware([]byte(cfg.JWT.Secret), redisClient))
 	{
 		protected.POST("/refresh-token", authHandler.RefreshToken)
 		protected.POST("/logout", authHandler.Logout)

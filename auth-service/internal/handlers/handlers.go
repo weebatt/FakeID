@@ -1,30 +1,33 @@
 package handlers
 
 import (
+	"context"
 	"database/sql"
 	database "fake_id/internal/db"
 	"fake_id/internal/models"
+	"fake_id/internal/redis"
 	"fake_id/internal/utils"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/labstack/echo/v4"
-	_ "github.com/labstack/echo/v4"
 	"net/http"
+	"strings"
 	"time"
 )
 
 type AuthHandler struct {
-	db        *database.Database
-	jwtSecret []byte
-	// Add token expiration configuration
+	db              *database.Database
+	redis           *redis.Redis
+	jwtSecret       []byte
 	tokenExpiration time.Duration
 }
 
 // NewAuthHandler creates a new authentication handler
-func NewAuthHandler(db *database.Database, jwtSecret []byte) *AuthHandler {
+func NewAuthHandler(db *database.Database, redis *redis.Redis, jwtSecret []byte, tokenExpiration time.Duration) *AuthHandler {
 	return &AuthHandler{
 		db:              db,
+		redis:           redis,
 		jwtSecret:       jwtSecret,
-		tokenExpiration: 24 * time.Hour, // Default 24 hour expiration
+		tokenExpiration: tokenExpiration,
 	}
 }
 
@@ -63,8 +66,7 @@ func (h *AuthHandler) Register(c echo.Context) error {
 	}
 	if exists {
 		c.JSON(http.StatusConflict, map[string]interface{}{
-			"error":   "Email already registered",
-			"details": err.Error(),
+			"error": "Email already registered",
 		})
 		return nil
 	}
@@ -142,10 +144,8 @@ func (h *AuthHandler) Login(c echo.Context) error {
 	).Scan(&user.ID, &user.Email, &user.PasswordHash)
 
 	if err == sql.ErrNoRows {
-		// Don't specify whether email or password was wrong
 		c.JSON(http.StatusUnauthorized, map[string]interface{}{
-			"error":   "Invalid credentials",
-			"details": err.Error(),
+			"error": "Invalid credentials",
 		})
 		return nil
 	}
@@ -159,10 +159,8 @@ func (h *AuthHandler) Login(c echo.Context) error {
 
 	// Verify password
 	if !utils.CheckPasswordHash(login.Password, user.PasswordHash) {
-		// Use same message as above for security
 		c.JSON(http.StatusUnauthorized, map[string]interface{}{
-			"error":   "Invalid credentials",
-			"details": err.Error(),
+			"error": "Invalid credentials",
 		})
 		return nil
 	}
@@ -186,6 +184,17 @@ func (h *AuthHandler) Login(c echo.Context) error {
 		return nil
 	}
 
+	// Save token in Redis with expiration
+	ctx := context.Background()
+	err = h.redis.Client.Set(ctx, tokenString, user.ID, h.tokenExpiration).Err()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, map[string]interface{}{
+			"error":   "Failed to save token",
+			"details": err.Error(),
+		})
+		return nil
+	}
+
 	// Return token with expiration
 	c.JSON(http.StatusOK, map[string]interface{}{
 		"token":      tokenString,
@@ -198,10 +207,19 @@ func (h *AuthHandler) Login(c echo.Context) error {
 // RefreshToken generates a new token for valid users
 func (h *AuthHandler) RefreshToken(c echo.Context) error {
 	// Get user ID from context (set by auth middleware)
-	userID := c.Get("user_id")
-	if userID == nil {
+	userID, ok := c.Get("user_id").(float64)
+	if !ok {
 		c.JSON(http.StatusUnauthorized, map[string]interface{}{
 			"error": "User not authenticated",
+		})
+		return nil
+	}
+
+	// Get email from context
+	email, ok := c.Get("email").(string)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, map[string]interface{}{
+			"error": "Invalid user data",
 		})
 		return nil
 	}
@@ -210,6 +228,7 @@ func (h *AuthHandler) RefreshToken(c echo.Context) error {
 	now := time.Now()
 	claims := jwt.MapClaims{
 		"user_id": userID,
+		"email":   email,
 		"iat":     now.Unix(),
 		"exp":     now.Add(h.tokenExpiration).Unix(),
 	}
@@ -224,6 +243,17 @@ func (h *AuthHandler) RefreshToken(c echo.Context) error {
 		return nil
 	}
 
+	// Save new token in Redis
+	ctx := context.Background()
+	err = h.redis.Client.Set(ctx, tokenString, userID, h.tokenExpiration).Err()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, map[string]interface{}{
+			"error":   "Failed to save refreshed token",
+			"details": err.Error(),
+		})
+		return nil
+	}
+
 	c.JSON(http.StatusOK, map[string]interface{}{
 		"token":      tokenString,
 		"expires_in": h.tokenExpiration.Seconds(),
@@ -232,10 +262,38 @@ func (h *AuthHandler) RefreshToken(c echo.Context) error {
 	return nil
 }
 
-// Logout endpoint (optional - useful for client-side cleanup)
+// Logout invalidates the token
 func (h *AuthHandler) Logout(c echo.Context) error {
-	// Since JWT is stateless, server-side logout isn't needed
-	// However, we can return instructions for the client
+	// Get token from Authorization header
+	authHeader := c.Request().Header.Get("Authorization")
+	if authHeader == "" {
+		c.JSON(http.StatusBadRequest, map[string]interface{}{
+			"error": "Authorization header missing",
+		})
+		return nil
+	}
+
+	parts := strings.Split(authHeader, " ")
+	if len(parts) != 2 || parts[0] != "Bearer" {
+		c.JSON(http.StatusBadRequest, map[string]interface{}{
+			"error": "Invalid authorization format",
+		})
+		return nil
+	}
+
+	tokenString := parts[1]
+
+	// Invalidate token by removing it from Redis
+	ctx := context.Background()
+	err := h.redis.Client.Del(ctx, tokenString).Err()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, map[string]interface{}{
+			"error":   "Failed to invalidate token",
+			"details": err.Error(),
+		})
+		return nil
+	}
+
 	c.JSON(http.StatusOK, map[string]interface{}{
 		"message":      "Successfully logged out",
 		"instructions": "Please remove the token from your client storage",

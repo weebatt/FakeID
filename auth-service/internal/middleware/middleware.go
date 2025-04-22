@@ -1,9 +1,11 @@
 package middleware
 
 import (
+	"context"
+	"errors"
+	"fake_id/internal/redis"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/labstack/echo/v4"
-	_ "github.com/labstack/echo/v4"
 	"golang.org/x/time/rate"
 	"net/http"
 	"strings"
@@ -11,7 +13,7 @@ import (
 )
 
 // AuthMiddleware verifies JWT tokens in incoming requests
-func AuthMiddleware(jwtSecret []byte) echo.MiddlewareFunc {
+func AuthMiddleware(jwtSecret []byte, redis *redis.Redis) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			// Get Authorization header
@@ -33,6 +35,22 @@ func AuthMiddleware(jwtSecret []byte) echo.MiddlewareFunc {
 			}
 
 			tokenString := parts[1]
+
+			// Check if token exists in Redis
+			ctx := context.Background()
+			_, err := redis.Client.Get(ctx, tokenString).Result()
+			if errors.Is(err, redis.Close()) {
+				c.JSON(http.StatusUnauthorized, map[string]interface{}{
+					"error": "Token invalidated or expired",
+				})
+				return nil
+			} else if err != nil {
+				c.JSON(http.StatusInternalServerError, map[string]interface{}{
+					"error":   "Failed to verify token",
+					"details": err.Error(),
+				})
+				return nil
+			}
 
 			// Parse and validate token
 			token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
@@ -62,8 +80,7 @@ func AuthMiddleware(jwtSecret []byte) echo.MiddlewareFunc {
 			claims, ok := token.Claims.(jwt.MapClaims)
 			if !ok || !token.Valid {
 				c.JSON(http.StatusUnauthorized, map[string]interface{}{
-					"error":   "Invalid token claims",
-					"details": err.Error(),
+					"error": "Invalid token claims",
 				})
 				return nil
 			}
@@ -72,8 +89,7 @@ func AuthMiddleware(jwtSecret []byte) echo.MiddlewareFunc {
 			if exp, ok := claims["exp"].(float64); ok {
 				if time.Now().Unix() > int64(exp) {
 					c.JSON(http.StatusUnauthorized, map[string]interface{}{
-						"error":   "Token expired",
-						"details": err.Error(),
+						"error": "Token expired",
 					})
 					return nil
 				}
@@ -83,12 +99,7 @@ func AuthMiddleware(jwtSecret []byte) echo.MiddlewareFunc {
 			c.Set("user_id", claims["user_id"])
 			c.Set("email", claims["email"])
 
-			if err := next(c); err != nil {
-				return c.JSON(http.StatusUnauthorized, map[string]interface{}{
-					"error": err.Error(),
-				})
-			}
-			return nil
+			return next(c)
 		}
 	}
 }
@@ -104,11 +115,6 @@ func RateLimiter(next echo.HandlerFunc) echo.HandlerFunc {
 			return nil
 		}
 
-		if err := next(c); err != nil {
-			return c.JSON(http.StatusUnauthorized, map[string]interface{}{
-				"error": err.Error(),
-			})
-		}
-		return nil
+		return next(c)
 	}
 }

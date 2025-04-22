@@ -30,6 +30,12 @@ type Config struct {
 		RefreshExpiry time.Duration
 	}
 
+	Redis struct {
+		Addr     string
+		Password string
+		DB       int
+	}
+
 	Environment string
 }
 
@@ -48,7 +54,7 @@ func Load() (*Config, error) {
 	cfg.Database.Host = getEnv("DB_HOST", "localhost")
 	cfg.Database.Port = getEnv("DB_PORT", "5432")
 	cfg.Database.User = getEnv("DB_USER", "postgres")
-	cfg.Database.Password = getEnv("DB_PASSWORD", "")
+	cfg.Database.Password = getEnv("DB_PASSWORD", "root")
 	cfg.Database.DBName = getEnv("DB_NAME", "auth_service")
 	cfg.Database.SSLMode = getEnv("DB_SSLMODE", "disable")
 
@@ -56,6 +62,11 @@ func Load() (*Config, error) {
 	cfg.JWT.Secret = getEnv("JWT_SECRET", "your-secret-key")
 	cfg.JWT.TokenExpiry = time.Hour * 24    // 24 hours
 	cfg.JWT.RefreshExpiry = time.Hour * 168 // 7 days
+
+	// Redis config
+	cfg.Redis.Addr = getEnv("REDIS_ADDR", "localhost:6379")
+	cfg.Redis.Password = getEnv("REDIS_PASSWORD", "")
+	cfg.Redis.DB = 0 // Redis DB index, can be configured via env if needed
 
 	cfg.Environment = getEnv("ENV", "development")
 
