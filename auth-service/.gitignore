@@ -1,6 +1,0 @@
-#directories
-../.idea
-
-#files
-.env
-.DS_Store
