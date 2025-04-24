@@ -1,5 +1,7 @@
-#directories
+#dirs
 .idea
+*/certs/
 
 #files
-**/.env
+.env
+.DS_Store
