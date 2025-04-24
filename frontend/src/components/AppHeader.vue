@@ -6,6 +6,7 @@
     <div class="actions">
       <button class="accent-button" @click="exportData">Export Data</button>
       <button>Settings</button>
+      <button @click="signOut">Sign Out</button>
     </div>
   </header>
 </template>
@@ -26,6 +27,16 @@ export default {
     exportData() {
       // Logic to export data as ZIP
       alert('Exporting data as ZIP...');
+    },
+    signOut() {
+      // Удаляем пользовательские данные из localStorage
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      // При необходимости очистить ещё что-то:
+      // localStorage.clear(); // полный сброс всех данных
+
+      // Перенаправляем пользователя на страницу входа
+      this.$router.push({ name: 'Login' });
     }
   }
 }
