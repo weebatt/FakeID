@@ -1,5 +1,10 @@
-#directories
+#dirs
 .idea
+*/certs/
+*/.vscode
 
 #files
-**/.env
+.env
+.DS_Store
+/api-gateway/nginx/certs/*
+/api-gateway/nginx/certs/
