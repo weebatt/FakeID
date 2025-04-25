@@ -1,8 +1,8 @@
 package middleware
 
 import (
-	"auth-service/internal/logger"
-	"auth-service/internal/redis"
+	"auth-service/pkg/db/redis"
+	"auth-service/pkg/logger"
 	"context"
 	"errors"
 	"github.com/golang-jwt/jwt/v5"

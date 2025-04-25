@@ -76,18 +76,13 @@ export default {
       },
       authError: '',
       isLoading: false
-    }
+    };
   },
   methods: {
     async login() {
-      // Reset errors
-      this.errors = {
-        email: '',
-        password: ''
-      };
+      this.errors = { email: '', password: '' };
       this.authError = '';
 
-      // Validate form
       let isValid = true;
 
       if (!this.form.email) {
@@ -105,15 +100,11 @@ export default {
 
       if (!isValid) return;
 
-      // Set loading state
       this.isLoading = true;
 
       try {
-        // Use the auth store to login (which uses the authService)
         await authStore.login(this.form.email, this.form.password, this.form.remember);
-        // If successful, the auth store will redirect to home page
       } catch (error) {
-        // Show error from the API
         this.authError = error.message || 'Login failed. Please try again.';
       } finally {
         this.isLoading = false;
@@ -150,7 +141,7 @@ export default {
       }
     }
   }
-}
+};
 </script>
 
 <style scoped>

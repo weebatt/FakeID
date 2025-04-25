@@ -1,6 +1,4 @@
-FROM golang:1.23.8-alpine AS builder
-
-RUN apk add --no-cache git
+FROM --platform=linux/amd64 golang:1.24-alpine
 
 WORKDIR /app
 
@@ -9,16 +7,8 @@ RUN go mod download
 
 COPY . .
 
-RUN go build -o task-service ./cmd/task-service
+RUN go build -o main ./cmd
 
-FROM alpine:3.18
+EXPOSE 8080
 
-RUN apk add --no-cache ca-certificates
-
-WORKDIR /app
-
-COPY --from=builder /app/task-service .
-
-EXPOSE 8080  
-
-CMD ["./task-service"]
+CMD ["./main"]

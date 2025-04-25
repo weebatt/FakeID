@@ -95,11 +95,10 @@ export default {
       },
       authError: '',
       isLoading: false
-    }
+    };
   },
   methods: {
     async register() {
-      // Reset errors
       this.errors = {
         name: '',
         email: '',
@@ -108,7 +107,6 @@ export default {
       };
       this.authError = '';
 
-      // Validate form
       let isValid = true;
 
       if (!this.form.name) {
@@ -142,19 +140,12 @@ export default {
 
       if (!isValid) return;
 
-      // Set loading state
       this.isLoading = true;
 
       try {
-        // Use the auth store to register (which uses the authService)
-        await authStore.register(
-            this.form.name,
-            this.form.email,
-            this.form.password
-        );
-        // If successful, the auth store will redirect to home page
+        // Note: The backend currently ignores the 'name' field
+        await authStore.register(this.form.name, this.form.email, this.form.password);
       } catch (error) {
-        // Show error from the API
         this.authError = error.message || 'Registration failed. Please try again.';
       } finally {
         this.isLoading = false;
@@ -169,7 +160,7 @@ export default {
       this.authError = '';
     }
   }
-}
+};
 </script>
 
 <style scoped>

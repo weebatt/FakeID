@@ -1,22 +1,21 @@
-// views/TestResults.vue
 <template>
   <div class="test-results">
     <div class="test-summary">
       <div class="summary-card">
         <h3>Total Tests</h3>
-        <p class="stat-value">24</p>
+        <p class="stat-value">{{ testSummary.total }}</p>
       </div>
       <div class="summary-card">
         <h3>Passed</h3>
-        <p class="stat-value success">18</p>
+        <p class="stat-value success">{{ testSummary.passed }}</p>
       </div>
       <div class="summary-card">
         <h3>Failed</h3>
-        <p class="stat-value error">6</p>
+        <p class="stat-value error">{{ testSummary.failed }}</p>
       </div>
       <div class="summary-card">
         <h3>Success Rate</h3>
-        <p class="stat-value">75%</p>
+        <p class="stat-value">{{ testSummary.successRate }}%</p>
       </div>
     </div>
 
@@ -25,9 +24,8 @@
         <label>API Endpoint</label>
         <select v-model="filters.endpoint">
           <option value="">All Endpoints</option>
-          <option>GET /users</option>
-          <option>POST /users</option>
-          <option>GET /products</option>
+          <option>POST /api/v2/tasks</option>
+          <option>GET /api/v2/tasks/:id</option>
         </select>
       </div>
       <div class="filter-item">
@@ -42,11 +40,11 @@
         <label>Date</label>
         <input type="date" v-model="filters.date" />
       </div>
-      <button class="filter-apply">Apply Filters</button>
+      <button class="filter-apply" @click="applyFilters">Apply Filters</button>
     </div>
 
     <div class="test-list">
-      <div class="test-item" v-for="(test, index) in filteredTests" :key="index">
+      <div class="test-item" v-for="(test, index) in filteredTests" :key="test.id">
         <div class="test-header" @click="toggleTestDetails(index)">
           <div class="test-status" :class="test.status">
             <span v-if="test.status === 'passed'">✓</span>
@@ -143,125 +141,8 @@ export default {
       },
       currentPage: 1,
       testsPerPage: 5,
-      tests: [
-        {
-          id: 1,
-          name: 'Get Users Test Case 1',
-          endpoint: 'GET /users',
-          status: 'passed',
-          time: 120,
-          date: '2023-04-21',
-          expanded: false,
-          request: {
-            method: 'GET',
-            url: 'https://api.example.com/users?limit=10',
-            headers: [
-              { key: 'Accept', value: 'application/json' }
-            ],
-            body: null
-          },
-          response: {
-            status: 200,
-            statusText: 'OK',
-            time: 120,
-            headers: [
-              { key: 'Content-Type', value: 'application/json' },
-              { key: 'X-Rate-Limit', value: '100' }
-            ],
-            body: {
-              data: [
-                { id: 1, name: 'User 1' },
-                { id: 2, name: 'User 2' }
-              ],
-              meta: {
-                total: 2,
-                page: 1
-              }
-            }
-          },
-          assertions: [
-            { name: 'Status code is 200', passed: true },
-            { name: 'Response time is acceptable', passed: true },
-            { name: 'Response has valid schema', passed: true }
-          ]
-        },
-        {
-          id: 2,
-          name: 'Create User Test Case 1',
-          endpoint: 'POST /users',
-          status: 'failed',
-          time: 250,
-          date: '2023-04-21',
-          expanded: false,
-          request: {
-            method: 'POST',
-            url: 'https://api.example.com/users',
-            headers: [
-              { key: 'Content-Type', value: 'application/json' },
-              { key: 'Accept', value: 'application/json' }
-            ],
-            body: {
-              name: 'New User',
-              email: 'newuser@example.com'
-            }
-          },
-          response: {
-            status: 422,
-            statusText: 'Unprocessable Entity',
-            time: 250,
-            headers: [
-              { key: 'Content-Type', value: 'application/json' }
-            ],
-            body: {
-              error: 'Validation failed',
-              details: [
-                { field: 'email', message: 'Email already exists' }
-              ]
-            }
-          },
-          assertions: [
-            { name: 'Status code is 201', passed: false, message: 'Expected 201, got 422' },
-            { name: 'Response has valid schema', passed: true },
-            { name: 'User created successfully', passed: false, message: 'Validation failed' }
-          ]
-        },
-        {
-          id: 3,
-          name: 'Get Products Test Case 1',
-          endpoint: 'GET /products',
-          status: 'passed',
-          time: 180,
-          date: '2023-04-20',
-          expanded: false,
-          request: {
-            method: 'GET',
-            url: 'https://api.example.com/products?category=electronics',
-            headers: [
-              { key: 'Accept', value: 'application/json' }
-            ],
-            body: null
-          },
-          response: {
-            status: 200,
-            statusText: 'OK',
-            time: 180,
-            headers: [
-              { key: 'Content-Type', value: 'application/json' }
-            ],
-            body: {
-              data: [
-                { id: 1, name: 'Product 1', category: 'electronics' },
-                { id: 2, name: 'Product 2', category: 'electronics' }
-              ]
-            }
-          },
-          assertions: [
-            { name: 'Status code is 200', passed: true },
-            { name: 'Response contains electronics products', passed: true }
-          ]
-        }
-      ]
-    }
+      tests: []
+    };
   },
   computed: {
     filteredTests() {
@@ -279,7 +160,6 @@ export default {
         filtered = filtered.filter(test => test.date === this.filters.date);
       }
 
-      // Pagination
       const start = (this.currentPage - 1) * this.testsPerPage;
       const end = start + this.testsPerPage;
       return filtered.slice(start, end);
@@ -293,14 +173,45 @@ export default {
       });
 
       return Math.ceil(filtered.length / this.testsPerPage);
+    },
+    testSummary() {
+      const total = this.tests.length;
+      const passed = this.tests.filter(test => test.status === 'passed').length;
+      const failed = total - passed;
+      const successRate = total > 0 ? Math.round((passed / total) * 100) : 0;
+
+      return {
+        total,
+        passed,
+        failed,
+        successRate
+      };
     }
   },
   methods: {
     toggleTestDetails(index) {
       this.$set(this.filteredTests[index], 'expanded', !this.filteredTests[index].expanded);
+    },
+    applyFilters() {
+      this.currentPage = 1; // Сбрасываем страницу при применении фильтров
+    },
+    loadTests() {
+      const storedTests = JSON.parse(localStorage.getItem('testResults') || '[]');
+      this.tests = storedTests.map(test => ({
+        ...test,
+        expanded: false // Гарантируем, что все тесты изначально свернуты
+      }));
     }
+  },
+  mounted() {
+    this.loadTests();
+    // Обновляем тесты при изменении localStorage (например, после нового запроса)
+    window.addEventListener('storage', this.loadTests);
+  },
+  beforeDestroy() {
+    window.removeEventListener('storage', this.loadTests);
   }
-}
+};
 </script>
 
 <style scoped>

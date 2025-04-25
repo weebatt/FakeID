@@ -7,7 +7,7 @@ import (
 )
 
 func SetupTaskRoutes(router *echo.Echo, taskHandler *handlers.TaskHandler) {
-	api := router.Group("/tasks")
+	api := router.Group("/api/v2/tasks")
 	{
 		api.POST("", taskHandler.CreateNewTask)
 		api.GET("/:id", taskHandler.GetTaskByID)

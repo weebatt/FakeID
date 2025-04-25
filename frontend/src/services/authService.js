@@ -1,11 +1,9 @@
-// services/authService.js - Обновлен для работы через API Gateway
-
-const API_URL = '/api/auth'; // Относительный путь, который будет проксироваться через Nginx
+const API_URL = '/api/v1';
 
 const authService = {
-    // Авторизация через API Gateway
     async login(email, password) {
         try {
+            console.log('Sending login request to:', `${API_URL}/login`, 'with body:', { email, password });
             const response = await fetch(`${API_URL}/login`, {
                 method: 'POST',
                 headers: {
@@ -14,80 +12,72 @@ const authService = {
                 body: JSON.stringify({ email, password })
             });
 
+            console.log('Login response status:', response.status, 'OK:', response.ok);
+
             if (!response.ok) {
                 const errorData = await response.json();
+                console.log('Login error response:', errorData);
                 throw new Error(errorData.error || 'Ошибка входа');
             }
 
             const data = await response.json();
-            return data.data; // API Gateway оборачивает ответ в поле data
+            console.log('Login response data:', data);
+
+            // Преобразуем данные в ожидаемый формат
+            const result = {
+                user: data.data?.user || { email: data.data?.email, name: data.data?.name || '' },
+                token: data.data?.token,
+            };
+
+            if (!result.user || !result.token) {
+                throw new Error('Response missing user or token');
+            }
+
+            return result;
         } catch (error) {
+            console.error('Login fetch error:', error);
             throw error;
         }
     },
 
-    // Регистрация через API Gateway
     async register(name, email, password) {
         try {
+            console.log('Sending register request to:', `${API_URL}/register`, 'with body:', { name, email, password });
             const response = await fetch(`${API_URL}/register`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ name, email, password })
+                body: JSON.stringify({ email, password })
             });
+
+            console.log('Register response status:', response.status, 'OK:', response.ok);
 
             if (!response.ok) {
                 const errorData = await response.json();
+                console.log('Register error response:', errorData);
                 throw new Error(errorData.error || 'Ошибка регистрации');
             }
 
             const data = await response.json();
-            return data.data;
-        } catch (error) {
-            throw error;
-        }
-    },
+            console.log('Register response data:', data);
 
-    // Восстановление пароля через API Gateway
-    async forgotPassword(email) {
-        try {
-            const response = await fetch(`${API_URL}/forgot-password`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ email })
-            });
+            // Преобразуем данные в ожидаемый формат
+            const result = {
+                user: data.data?.user || { email: data.data?.email, name: data.data?.name || name || '' },
+                token: data.data?.token,
+            };
 
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Не удалось отправить ссылку для сброса пароля');
+            if (!result.user || !result.token) {
+                throw new Error('Response missing user or token');
             }
 
-            const data = await response.json();
-            return data.data;
+            return result;
         } catch (error) {
+            console.error('Register fetch error:', error);
             throw error;
         }
     },
-
-    // Проверка токена с использованием заголовка Authentication
-    async verifyToken(token) {
-        try {
-            const response = await fetch(`${API_URL}/verify-token`, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                }
-            });
-
-            return response.ok;
-        } catch (error) {
-            return false;
-        }
-    }
 };
 
 export default authService;

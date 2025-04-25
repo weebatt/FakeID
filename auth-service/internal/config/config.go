@@ -52,12 +52,12 @@ func Load() (*Config, error) {
 	cfg.Server.WriteTimeout = time.Second * 15
 
 	// Database config
-	cfg.Database.Host = getEnv("DB_HOST", "localhost")
-	cfg.Database.Port = getEnv("DB_PORT", "5432")
-	cfg.Database.User = getEnv("DB_USER", "postgres")
-	cfg.Database.Password = getEnv("DB_PASSWORD", "root")
-	cfg.Database.DBName = getEnv("DB_NAME", "auth_service")
-	cfg.Database.SSLMode = getEnv("DB_SSLMODE", "disable")
+	cfg.Database.Host = getEnv("PG_HOST", "localhost")
+	cfg.Database.Port = getEnv("PG_PORT", "5432")
+	cfg.Database.User = getEnv("PG_USER", "postgres")
+	cfg.Database.Password = getEnv("PG_PASSWORD", "root")
+	cfg.Database.DBName = getEnv("PG_DBNAME", "auth_service")
+	cfg.Database.SSLMode = getEnv("PG_SSLMODE", "disable")
 
 	// JWT config
 	cfg.JWT.Secret = getEnv("JWT_SECRET", "your-secret-key")

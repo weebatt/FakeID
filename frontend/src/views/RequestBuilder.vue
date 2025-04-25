@@ -1,4 +1,3 @@
-// views/RequestBuilder.vue
 <template>
   <div class="request-builder">
     <div class="request-form">
@@ -16,12 +15,14 @@
           <input
               type="text"
               v-model="request.url"
-              placeholder="Enter request URL"
+              placeholder="Enter request URL (e.g., /api/v2/tasks)"
               @keyup.enter="sendRequest"
           />
         </div>
         <div class="send-button">
-          <button class="accent-button" @click="sendRequest">Send</button>
+          <button class="accent-button" @click="sendRequest" :disabled="isLoading">
+            {{ isLoading ? 'Sending...' : 'Send' }}
+          </button>
         </div>
       </div>
 
@@ -109,75 +110,22 @@
             <div class="body-type-select">
               <select v-model="request.bodyType">
                 <option value="none">None</option>
-                <option value="form-data">Form Data</option>
-                <option value="x-www-form-urlencoded">x-www-form-urlencoded</option>
                 <option value="raw">Raw</option>
-                <option value="binary">Binary</option>
               </select>
-
               <select v-if="request.bodyType === 'raw'" v-model="request.bodyFormat">
                 <option value="json">JSON</option>
-                <option value="text">Text</option>
-                <option value="xml">XML</option>
-                <option value="html">HTML</option>
               </select>
             </div>
-
-            <div v-if="request.bodyType === 'form-data' || request.bodyType === 'x-www-form-urlencoded'">
-              <div class="param-row header">
-                <div class="check">Use</div>
-                <div class="key">Key</div>
-                <div class="value">Value</div>
-                <div class="description">Description</div>
-                <div class="actions"></div>
-              </div>
-              <div
-                  v-for="(param, index) in request.bodyParams"
-                  :key="index"
-                  class="param-row"
-              >
-                <div class="check">
-                  <input type="checkbox" v-model="param.enabled" />
-                </div>
-                <div class="key">
-                  <input type="text" v-model="param.key" placeholder="Parameter name" />
-                </div>
-                <div class="value">
-                  <input
-                      v-if="request.bodyType === 'form-data' && param.type === 'file'"
-                      type="file"
-                  />
-                  <input
-                      v-else
-                      type="text"
-                      v-model="param.value"
-                      placeholder="Parameter value"
-                  />
-                </div>
-                <div class="description">
-                  <input type="text" v-model="param.description" placeholder="Parameter description" />
-                </div>
-                <div class="actions">
-                  <button @click="removeBodyParam(index)">×</button>
-                </div>
-              </div>
-              <button @click="addBodyParam" class="add-param">+ Add Parameter</button>
-            </div>
-
-            <div v-else-if="request.bodyType === 'raw'" class="raw-editor">
+            <div v-if="request.bodyType === 'raw'" class="raw-editor">
               <textarea
                   v-model="request.rawBody"
-                  :placeholder="`Enter ${request.bodyFormat.toUpperCase()} content`"
+                  placeholder='Enter JSON content, e.g., {"type": "example_task", "template_id": "template_123", "template": "Sample template", "amount": 10}'
                   rows="10"
               ></textarea>
             </div>
-
-            <div v-else-if="request.bodyType === 'binary'" class="binary-editor">
-              <input type="file" />
-            </div>
           </div>
 
-          <!-- Настройки тестов -->
+          <!-- Тесты -->
           <div v-if="activeTab === 'tests'" class="tests-container">
             <div class="test-options">
               <div class="test-option">
@@ -210,36 +158,6 @@
                     placeholder="Max Response Time (ms)"
                 />
               </div>
-              <div class="test-option">
-                <label>
-                  <input type="checkbox" v-model="testSettings.checkHeaderPresence" />
-                  Check Header Presence
-                </label>
-                <input
-                    v-if="testSettings.checkHeaderPresence"
-                    type="text"
-                    v-model="testSettings.expectedHeader"
-                    placeholder="Header Name"
-                />
-              </div>
-            </div>
-
-            <div class="test-generation">
-              <h3>Test Data Generation</h3>
-              <div class="test-generation-options">
-                <div class="test-generation-option">
-                  <label>Number of Test Cases</label>
-                  <input type="number" v-model="testSettings.testCasesCount" min="1" max="100" />
-                </div>
-                <div class="test-generation-option">
-                  <label>Include Edge Cases</label>
-                  <input type="checkbox" v-model="testSettings.includeEdgeCases" />
-                </div>
-                <div class="test-generation-option">
-                  <label>Generate Negative Tests</label>
-                  <input type="checkbox" v-model="testSettings.generateNegativeTests" />
-                </div>
-              </div>
             </div>
           </div>
         </div>
@@ -266,15 +184,38 @@
         <button class="accent-button" @click="generateTestData">Generate Test Data</button>
       </div>
     </div>
+
+    <div v-if="error" class="error-message">
+      {{ error }}
+    </div>
   </div>
 </template>
 
 <script>
+import axios from 'axios';
+import authStore from '../store/auth';
+import Ajv from 'ajv';
+
+const taskSchema = {
+  type: 'object',
+  properties: {
+    id: { type: 'integer' },
+    task_id: { type: 'string' },
+    user_id: { type: 'string' },
+    type: { type: 'string' },
+    template_id: { type: 'string' },
+    template: { type: 'string' },
+    amount: { type: 'integer' }
+  },
+  required: ['id', 'task_id', 'user_id', 'type'],
+  additionalProperties: false
+};
+
 export default {
   name: 'RequestBuilder',
   data() {
     return {
-      activeTab: 'params',
+      activeTab: 'body',
       tabs: [
         { id: 'params', name: 'Params' },
         { id: 'headers', name: 'Headers' },
@@ -282,16 +223,26 @@ export default {
         { id: 'tests', name: 'Tests' }
       ],
       request: {
-        method: 'GET',
-        url: '',
+        method: 'POST',
+        url: '/api/v2/tasks',
         params: [],
         headers: [
-          { key: 'Content-Type', value: 'application/json', description: '', enabled: true }
+          { key: 'Content-Type', value: 'application/json', description: 'Content type', enabled: true },
+          { key: 'Authorization', value: '', description: 'Bearer token', enabled: true }
         ],
-        bodyType: 'none',
+        bodyType: 'raw',
         bodyFormat: 'json',
         bodyParams: [],
-        rawBody: ''
+        rawBody: JSON.stringify(
+            {
+              type: '',
+              template_id: '',
+              template: '',
+              amount: 0
+            },
+            null,
+            2
+        )
       },
       testSettings: {
         validateResponse: true,
@@ -305,8 +256,10 @@ export default {
         includeEdgeCases: true,
         generateNegativeTests: true
       },
-      response: null
-    }
+      response: null,
+      error: null,
+      isLoading: false
+    };
   },
   computed: {
     responseStatusClass() {
@@ -337,34 +290,176 @@ export default {
     removeBodyParam(index) {
       this.request.bodyParams.splice(index, 1);
     },
-    sendRequest() {
-      // В реальном приложении здесь был бы запрос к API
-      // Имитация ответа для демонстрации
-      setTimeout(() => {
+    async sendRequest() {
+      this.response = null;
+      this.error = null;
+      this.isLoading = true;
+
+      if (!authStore.state.isAuthenticated || !authStore.state.token) {
+        this.error = 'Please log in to send requests to task-service';
+        this.isLoading = false;
+        return;
+      }
+
+      const headers = {};
+      this.request.headers.forEach(header => {
+        if (header.enabled && header.key) {
+          headers[header.key] = header.value;
+        }
+      });
+      headers['Authorization'] = `Bearer ${authStore.state.token}`;
+
+      const params = {};
+      this.request.params.forEach(param => {
+        if (param.enabled && param.key) {
+          params[param.key] = param.value;
+        }
+      });
+
+      let data = null;
+      if (this.request.bodyType === 'raw' && this.request.rawBody) {
+        try {
+          data = JSON.parse(this.request.rawBody);
+        } catch (e) {
+          this.error = 'Invalid JSON in request body';
+          this.isLoading = false;
+          return;
+        }
+      }
+
+      try {
+        const startTime = performance.now();
+        const response = await axios({
+          method: this.request.method,
+          url: this.request.url,
+          headers,
+          params,
+          data
+        });
+
+        const endTime = performance.now();
+        const responseSize = JSON.stringify(response.data).length;
+
         this.response = {
-          status: 200,
-          statusText: 'OK',
-          time: 235,
-          size: '1.2 KB',
-          body: {
-            success: true,
-            data: {
-              id: 1,
-              name: 'Test User',
-              email: 'test@example.com',
-              created_at: '2023-01-01T00:00:00Z'
-            }
-          }
+          status: response.status,
+          statusText: response.statusText,
+          time: Math.round(endTime - startTime),
+          size: `${(responseSize / 1024).toFixed(2)} KB`,
+          body: response.data,
+          headers: Object.entries(response.headers).map(([key, value]) => ({ key, value }))
         };
-      }, 500);
+
+        // Формируем assertions
+        const assertions = [];
+
+        if (this.testSettings.checkStatusCode) {
+          const passed = response.status === parseInt(this.testSettings.expectedStatusCode);
+          assertions.push({
+            name: `Status code is ${this.testSettings.expectedStatusCode}`,
+            passed,
+            message: passed ? '' : `Expected ${this.testSettings.expectedStatusCode}, got ${response.status}`
+          });
+        }
+
+        if (this.testSettings.validateResponse) {
+          const ajv = new Ajv();
+          const validate = ajv.compile(taskSchema);
+          const valid = validate(response.data);
+          assertions.push({
+            name: 'Response has valid schema',
+            passed: valid,
+            message: valid ? '' : ajv.errorsText(validate.errors)
+          });
+        }
+
+        if (this.testSettings.checkResponseTime) {
+          const maxTime = parseInt(this.testSettings.maxResponseTime);
+          const passed = this.response.time <= maxTime;
+          assertions.push({
+            name: `Response time is less than ${maxTime}ms`,
+            passed,
+            message: passed ? '' : `Response time ${this.response.time}ms exceeds ${maxTime}ms`
+          });
+        }
+
+        // Сохраняем результат теста в localStorage
+        const testResult = {
+          id: Date.now(), // Уникальный ID на основе времени
+          name: `Test ${this.request.method} ${this.request.url}`,
+          endpoint: `${this.request.method} ${this.request.url}`,
+          status: assertions.every(a => a.passed) ? 'passed' : 'failed',
+          time: this.response.time,
+          date: new Date().toISOString().split('T')[0],
+          expanded: false,
+          request: {
+            method: this.request.method,
+            url: this.request.url,
+            headers: this.request.headers.filter(h => h.enabled),
+            body: data
+          },
+          response: this.response,
+          assertions
+        };
+
+        const storedTests = JSON.parse(localStorage.getItem('testResults') || '[]');
+        storedTests.push(testResult);
+        localStorage.setItem('testResults', JSON.stringify(storedTests));
+      } catch (error) {
+        this.error = error.response?.data?.error || 'Request failed';
+        this.response = {
+          status: error.response?.status || 500,
+          statusText: error.response?.statusText || 'Error',
+          time: 0,
+          size: '0 KB',
+          body: error.response?.data || { error: 'Request failed' },
+          headers: []
+        };
+
+        // Сохраняем результат неуспешного теста
+        const testResult = {
+          id: Date.now(),
+          name: `Test ${this.request.method} ${this.request.url}`,
+          endpoint: `${this.request.method} ${this.request.url}`,
+          status: 'failed',
+          time: 0,
+          date: new Date().toISOString().split('T')[0],
+          expanded: false,
+          request: {
+            method: this.request.method,
+            url: this.request.url,
+            headers: this.request.headers.filter(h => h.enabled),
+            body: data
+          },
+          response: this.response,
+          assertions: [
+            {
+              name: `Status code is ${this.testSettings.expectedStatusCode}`,
+              passed: false,
+              message: `Request failed: ${this.error}`
+            }
+          ]
+        };
+
+        const storedTests = JSON.parse(localStorage.getItem('testResults') || '[]');
+        storedTests.push(testResult);
+        localStorage.setItem('testResults', JSON.stringify(storedTests));
+      } finally {
+        this.isLoading = false;
+      }
     },
     generateTestData() {
-      // Логика генерации тестовых данных
-      alert('Test data will be generated and packaged as ZIP');
-      // Здесь можно добавить логику для скачивания ZIP-архива
+      alert('Test data generation not implemented yet');
+    }
+  },
+  mounted() {
+    if (authStore.state.token) {
+      const authHeader = this.request.headers.find(h => h.key === 'Authorization');
+      if (authHeader) {
+        authHeader.value = `Bearer ${authStore.state.token}`;
+      }
     }
   }
-}
+};
 </script>
 
 <style scoped>

@@ -6,10 +6,14 @@ services:
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=yourpassword
-      - POSTGRES_DB=auth_service
+      - POSTGRES_DB=fake_id
     volumes:
       - postgres-data:/var/lib/postgresql/data
-
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
     networks:
       - app-network
 
@@ -23,6 +27,30 @@ services:
     networks:
       - app-network
 
+  zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    container_name: zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  kafka:
+    image: confluentinc/cp-kafka:latest
+    container_name: kafka
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    networks:
+      - app-network
+    restart: unless-stopped
+
   auth-service:
     build:
       context: ./auth-service
@@ -35,7 +63,7 @@ services:
       - REDIS_ADDR=redis
       - JWT_SECRET=${JWT_SECRET}
     env_file:
-      - auth-service/.env
+      - auth-service/config/.env
     networks:
       - app-network
     depends_on:
@@ -43,7 +71,7 @@ services:
       - redis
     restart: unless-stopped
 
-  nginx:
+  api-gateway:
     image: nginx:latest
     ports:
       - "443:443"
@@ -51,49 +79,39 @@ services:
       - ./api-gateway/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./api-gateway/nginx/certs:/etc/nginx/certs:ro
     depends_on:
-      - api-gateway
       - frontend
     networks:
       - app-network
     restart: unless-stopped
-
-  api-gateway:
+  
+  frontend:
     build:
-      context: ./api-gateway
+      context: ./frontend
       dockerfile: Dockerfile
-      platforms:
-        - linux/amd64
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    networks:
+      - app-network
+
+  task-service:
+    build:
+      context: ./task-service
+      dockerfile: Dockerfile
     platform: linux/amd64
     expose:
       - "8080"
     environment:
       - JWT_SECRET=${JWT_SECRET}
-      - AUTH_SERVICE_URL=http://auth-service:8080
-    networks:
-      - app-network
+    env_file:
+      - task-service/config/.env
     depends_on:
-      - auth-service
+      - postgres
+      - redis
+      - kafka
+    networks:
+      - app-network
     restart: unless-stopped
-  
-  frontend:
-    build:
-      context: ./frontend # Путь к директории с фронтендом
-      dockerfile: Dockerfile
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-    networks:
-      - app-network
-
-  frontend:
-    build:
-      context: ./frontend # Путь к директории с фронтендом
-      dockerfile: Dockerfile
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-    networks:
-      - app-network
 
 networks:
   app-network:
