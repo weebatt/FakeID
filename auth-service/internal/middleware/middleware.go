@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"auth-service/internal/logger"
 	"auth-service/internal/redis"
 	"context"
 	"errors"
@@ -13,21 +14,21 @@ import (
 )
 
 // AuthMiddleware verifies JWT tokens in incoming requests
-func AuthMiddleware(jwtSecret []byte, redis *redis.Redis) echo.MiddlewareFunc {
+func AuthMiddleware(jwtSecret []byte, redis *redis.Redis, logger *logger.Logger) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
-			// Get Authorization header
 			authHeader := c.Request().Header.Get("Authorization")
 			if authHeader == "" {
+				logger.Warn("Authorization header missing")
 				c.JSON(http.StatusUnauthorized, map[string]interface{}{
 					"error": "Authorization header missing",
 				})
 				return nil
 			}
 
-			// Check Bearer scheme
 			parts := strings.Split(authHeader, " ")
 			if len(parts) != 2 || parts[0] != "Bearer" {
+				logger.Warn("Invalid authorization format")
 				c.JSON(http.StatusUnauthorized, map[string]interface{}{
 					"error": "Invalid authorization format",
 				})
@@ -35,16 +36,16 @@ func AuthMiddleware(jwtSecret []byte, redis *redis.Redis) echo.MiddlewareFunc {
 			}
 
 			tokenString := parts[1]
-
-			// Check if token exists in Redis
 			ctx := context.Background()
 			_, err := redis.Client.Get(ctx, tokenString).Result()
 			if errors.Is(err, redis.Close()) {
+				logger.Warn("Token invalidated or expired", "token", tokenString)
 				c.JSON(http.StatusUnauthorized, map[string]interface{}{
 					"error": "Token invalidated or expired",
 				})
 				return nil
 			} else if err != nil {
+				logger.Error("Failed to verify token", "error", err)
 				c.JSON(http.StatusInternalServerError, map[string]interface{}{
 					"error":   "Failed to verify token",
 					"details": err.Error(),
@@ -52,9 +53,7 @@ func AuthMiddleware(jwtSecret []byte, redis *redis.Redis) echo.MiddlewareFunc {
 				return nil
 			}
 
-			// Parse and validate token
 			token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-				// Validate signing method
 				if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 					return nil, jwt.ErrSignatureInvalid
 				}
@@ -63,11 +62,13 @@ func AuthMiddleware(jwtSecret []byte, redis *redis.Redis) echo.MiddlewareFunc {
 
 			if err != nil {
 				if err == jwt.ErrSignatureInvalid {
+					logger.Warn("Invalid token signature", "error", err)
 					c.JSON(http.StatusUnauthorized, map[string]interface{}{
 						"error":   "Invalid token signature",
 						"details": err.Error(),
 					})
 				} else {
+					logger.Warn("Invalid or expired token", "error", err)
 					c.JSON(http.StatusUnauthorized, map[string]interface{}{
 						"error":   "Invalid or expired token",
 						"details": err.Error(),
@@ -76,18 +77,18 @@ func AuthMiddleware(jwtSecret []byte, redis *redis.Redis) echo.MiddlewareFunc {
 				return nil
 			}
 
-			// Extract and validate claims
 			claims, ok := token.Claims.(jwt.MapClaims)
 			if !ok || !token.Valid {
+				logger.Warn("Invalid token claims")
 				c.JSON(http.StatusUnauthorized, map[string]interface{}{
 					"error": "Invalid token claims",
 				})
 				return nil
 			}
 
-			// Check token expiration
 			if exp, ok := claims["exp"].(float64); ok {
 				if time.Now().Unix() > int64(exp) {
+					logger.Warn("Token expired")
 					c.JSON(http.StatusUnauthorized, map[string]interface{}{
 						"error": "Token expired",
 					})
@@ -95,7 +96,7 @@ func AuthMiddleware(jwtSecret []byte, redis *redis.Redis) echo.MiddlewareFunc {
 				}
 			}
 
-			// Set user information in context
+			logger.Info("User authenticated", "user_id", claims["user_id"], "email", claims["email"])
 			c.Set("user_id", claims["user_id"])
 			c.Set("email", claims["email"])
 
@@ -105,16 +106,19 @@ func AuthMiddleware(jwtSecret []byte, redis *redis.Redis) echo.MiddlewareFunc {
 }
 
 // RateLimiter middleware to prevent brute force attacks
-func RateLimiter(next echo.HandlerFunc) echo.HandlerFunc {
+func RateLimiter(logger *logger.Logger) echo.MiddlewareFunc {
 	limiter := rate.NewLimiter(rate.Every(time.Second), 10)
-	return func(c echo.Context) error {
-		if !limiter.Allow() {
-			c.JSON(http.StatusTooManyRequests, map[string]interface{}{
-				"error": "Too many requests",
-			})
-			return nil
-		}
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			if !limiter.Allow() {
+				logger.Warn("Rate limit exceeded", "ip", c.RealIP())
+				c.JSON(http.StatusTooManyRequests, map[string]interface{}{
+					"error": "Too many requests",
+				})
+				return nil
+			}
 
-		return next(c)
+			return next(c)
+		}
 	}
 }

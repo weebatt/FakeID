@@ -3,8 +3,9 @@ package main
 import (
 	"auth-service/internal/config"
 	"auth-service/internal/handlers"
+	"auth-service/internal/logger"
 	"auth-service/internal/middleware"
-	database "auth-service/internal/postgres"
+	postgres "auth-service/internal/postgres"
 	"auth-service/internal/redis"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/gommon/log"
@@ -18,8 +19,15 @@ func main() {
 		log.Fatal("Failed to load config:", err)
 	}
 
+	// Initialize logger
+	zapLogger, err := logger.NewLogger(cfg.Environment)
+	if err != nil {
+		log.Fatal("Failed to initialize logger:", err)
+	}
+	defer zapLogger.Sync()
+
 	// Initialize database
-	db, err := database.NewDatabase(cfg.GetDSN())
+	db, err := postgres.NewDatabase(cfg.GetDSN())
 	if err != nil {
 		log.Fatal("Failed to connect to database:", err)
 	}
@@ -61,7 +69,7 @@ func main() {
 	})
 
 	// Initialize handlers with JWT configuration and Redis
-	authHandler := handlers.NewAuthHandler(db, redisClient, []byte(cfg.JWT.Secret), cfg.JWT.TokenExpiry)
+	authHandler := handlers.NewAuthHandler(db, redisClient, []byte(cfg.JWT.Secret), cfg.JWT.TokenExpiry, zapLogger)
 
 	// Public routes
 	public := r.Group("/api/v1")
@@ -72,7 +80,7 @@ func main() {
 
 	// Protected routes with JWT middleware
 	protected := r.Group("/api/v1")
-	protected.Use(middleware.AuthMiddleware([]byte(cfg.JWT.Secret), redisClient))
+	protected.Use(middleware.AuthMiddleware([]byte(cfg.JWT.Secret), redisClient, zapLogger))
 	{
 		protected.POST("/refresh-token", authHandler.RefreshToken)
 		protected.POST("/logout", authHandler.Logout)
