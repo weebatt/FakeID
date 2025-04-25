@@ -3,10 +3,10 @@ package main
 import (
 	"auth-service/internal/config"
 	"auth-service/internal/handlers"
-	"auth-service/internal/logger"
 	"auth-service/internal/middleware"
-	postgres "auth-service/internal/postgres"
-	"auth-service/internal/redis"
+	postgres "auth-service/pkg/db/postgres"
+	"auth-service/pkg/db/redis"
+	"auth-service/pkg/logger"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/gommon/log"
 	"net/http"

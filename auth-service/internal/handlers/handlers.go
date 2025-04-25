@@ -1,11 +1,11 @@
 package handlers
 
 import (
-	"auth-service/internal/logger"
 	"auth-service/internal/models"
-	postgres "auth-service/internal/postgres"
-	"auth-service/internal/redis"
 	"auth-service/internal/utils"
+	postgres "auth-service/pkg/db/postgres"
+	"auth-service/pkg/db/redis"
+	"auth-service/pkg/logger"
 	"context"
 	"database/sql"
 	"github.com/golang-jwt/jwt/v5"

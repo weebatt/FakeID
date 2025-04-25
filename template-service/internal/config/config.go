@@ -48,12 +48,10 @@ type Config struct {
 func New() (*Config, error) {
 	var cfg Config
 
-	// Читаем конфигурацию из переменных окружения
 	if err := cleanenv.ReadEnv(&cfg); err != nil {
 		return nil, fmt.Errorf("failed to read config from env: %w", err)
 	}
 
-	// Валидация конфигурации
 	validate := validator.New()
 	if err := validate.Struct(&cfg); err != nil {
 		return nil, fmt.Errorf("failed to validate config: %w", err)
