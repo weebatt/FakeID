@@ -52,6 +52,7 @@ services:
       - ./api-gateway/nginx/certs:/etc/nginx/certs:ro
     depends_on:
       - api-gateway
+      - frontend
     networks:
       - app-network
     restart: unless-stopped
@@ -67,11 +68,22 @@ services:
       - "8080"
     environment:
       - JWT_SECRET=${JWT_SECRET}
+      - AUTH_SERVICE_URL=http://auth-service:8080
     networks:
       - app-network
     depends_on:
       - auth-service
     restart: unless-stopped
+  
+  frontend:
+    build:
+      context: ./frontend # Путь к директории с фронтендом
+      dockerfile: Dockerfile
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    networks:
+      - app-network
 
 networks:
   app-network:
