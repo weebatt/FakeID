@@ -3,7 +3,6 @@ module task-service
 go 1.23.8
 
 require (
-	github.com/confluentinc/confluent-kafka-go v1.9.2
 	github.com/go-playground/validator/v10 v10.26.0
 	github.com/golang-migrate/migrate/v4 v4.18.2
 	github.com/google/uuid v1.6.0
@@ -12,6 +11,7 @@ require (
 	github.com/labstack/echo/v4 v4.13.1
 	github.com/pashagolub/pgxmock/v3 v3.4.0
 	github.com/redis/go-redis/v9 v9.7.3
+	github.com/segmentio/kafka-go v0.4.47
 	github.com/sony/gobreaker v1.0.0
 	github.com/stretchr/testify v1.10.0
 	go.uber.org/zap v1.27.0
@@ -39,7 +39,6 @@ require (
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/pierrec/lz4/v4 v4.1.16 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/segmentio/kafka-go v0.4.47 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.2 // indirect
