@@ -38,20 +38,11 @@ type RedisConfig struct {
 	RetryDelay int    `yaml:"retry_delay" env:"REDIS_RETRY_DELAY" env-default:"3" validate:"gte=1"`
 }
 
-type KafkaConfig struct {
-	Brokers    string `yaml:"brokers" env:"KAFKA_BROKERS" validate:"required"`
-	Topic      string `yaml:"topic" env:"KAFKA_TOPIC" validate:"required"`
-	MaxRetries int    `yaml:"max_retries" env:"KAFKA_MAX_RETRIES" env-default:"5" validate:"gte=1"`
-	RetryDelay int    `yaml:"retry_delay" env:"KAFKA_RETRY_DELAY" env-default:"3" validate:"gte=1"`
-	Timeout    int    `yaml:"timeout" env:"KAFKA_TIMEOUT" env-default:"5" validate:"gte=1"`
-}
-
 type Config struct {
 	Env        string         `yaml:"env" env:"ENV" env-default:"prod" validate:"oneof=dev prod test"`
 	HTTPServer HTTPServer     `yaml:"http_server" validate:"required"`
 	Postgres   PostgresConfig `yaml:"postgres" validate:"required"`
 	Redis      RedisConfig    `yaml:"redis" validate:"required"`
-	Kafka      KafkaConfig    `yaml:"kafka" validate:"required"`
 }
 
 func New() (*Config, error) {

@@ -6,19 +6,17 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"task-service/internal/config"
-	"task-service/internal/repository"
-	"task-service/internal/routes"
-	"task-service/internal/services"
-	http_transport "task-service/internal/transport/http"
-	"task-service/internal/transport/http/handlers"
-	"task-service/migrations"
+	"template-service/internal/config"
+	"template-service/internal/migrations"
+	"template-service/internal/repository"
+	"template-service/internal/routes"
+	"template-service/internal/services"
+	http_transport "template-service/internal/transport/http"
+	"template-service/internal/transport/http/handlers"
+	"template-service/pkg/db/postgres"
+	"template-service/pkg/db/redis"
+	"template-service/pkg/logger"
 	"time"
-
-	"task-service/pkg/broker/kafka"
-	"task-service/pkg/db/postgres"
-	"task-service/pkg/db/redis"
-	"task-service/pkg/logger"
 )
 
 func main() {
@@ -59,36 +57,21 @@ func main() {
 	}
 	defer redisClient.Close()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	kafkaClient, err := kafka.NewKafkaProducer(ctx, cfg.Kafka, log.SugaredLogger)
-	if err != nil {
-		log.Fatal("Failed to initialize Kafka producer: ", err)
-	}
-	defer func() {
-		if err := kafkaClient.Close(); err != nil {
-			log.Errorf("Failed to close Kafka producer: %v", err)
-		}
-	}()
-
 	//init router
 	routerConfig := http_transport.NewRouterConfig(cfg)
 	router := http_transport.NewRouter(routerConfig, log)
 
 	//init repositories
-	taskRepository := repository.NewTaskRepository(pgClient, log.SugaredLogger)
-
-	//init clients
-	templateClient := &http.Client{Timeout: 5 * time.Second}
+	taskRepository := repository.NewTemplateRepository(pgClient, log.SugaredLogger)
 
 	//init services
-	taskService := services.NewTaskService(taskRepository, redisClient, kafkaClient, log.SugaredLogger, templateClient)
+	taskService := services.NewTemplateService(taskRepository, redisClient, log.SugaredLogger)
 
 	//init handlers
-	taskHandler := handlers.NewTaskHandler(taskService, log.SugaredLogger)
+	taskHandler := handlers.NewTemplateHandler(taskService, log.SugaredLogger)
 
 	//init routes
-	routes.SetupTaskRoutes(router.Echo(), taskHandler)
+	routes.SetupTemplateRoutes(router.Echo(), taskHandler)
 
 	//run server
 	go func() {
@@ -112,7 +95,7 @@ func main() {
 	<-quit
 	log.Info("Received shutdown signal, shutting down gracefully...")
 
-	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	if err := router.ShuttingDown(ctx); err != nil {

@@ -1,0 +1,9 @@
+CREATE TABLE IF NOT EXISTS templates (
+  id BIGSERIAL PRIMARY KEY,
+  template_id VARCHAR(36) NOT NULL UNIQUE,
+  user_id user_id VARCHAR(36) NOT NULL,
+  title VARCHAR(36), 
+  content JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+)
