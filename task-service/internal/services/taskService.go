@@ -6,15 +6,24 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	templateClient "task-service/client/template-service"
 	"task-service/internal/models"
 	"task-service/internal/repository"
 	"task-service/pkg/broker/kafka"
-	"task-service/pkg/db/redis"
 	"time"
 
 	"go.uber.org/zap"
 )
+
+// Добавляем интерфейсы для зависимостей
+type RedisClient interface {
+	Set(ctx context.Context, key string, value interface{}, expiration time.Duration) error
+	Get(ctx context.Context, key string) (string, error)
+	Close() error
+}
+
+type HTTPClient interface {
+	Do(req *http.Request) (*http.Response, error)
+}
 
 type TaskService interface {
 	CreateNewTask(ctx context.Context, task models.Task) (int64, error)
@@ -23,13 +32,19 @@ type TaskService interface {
 
 type taskService struct {
 	repo           repository.TaskRepository
-	redis          redis.RedisClient
+	redis          RedisClient
 	kafka          kafka.KafkaProducer
 	logger         *zap.SugaredLogger
-	templateClient templateClient.TemplateClient
+	templateClient HTTPClient
 }
 
-func NewTaskService(repo repository.TaskRepository, redis redis.RedisClient, kafka kafka.KafkaProducer, logger *zap.SugaredLogger, templateClient templateClient.TemplateClient) TaskService {
+func NewTaskService(
+	repo repository.TaskRepository,
+	redis RedisClient,
+	kafka kafka.KafkaProducer,
+	logger *zap.SugaredLogger,
+	templateClient HTTPClient,
+) TaskService {
 	return &taskService{
 		repo:           repo,
 		redis:          redis,

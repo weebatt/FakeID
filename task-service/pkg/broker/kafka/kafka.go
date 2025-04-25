@@ -12,25 +12,20 @@ import (
 	"go.uber.org/zap"
 )
 
-// writerInterface defines the methods of kafka.Writer that we need.
-type writerInterface interface {
-	WriteMessages(ctx context.Context, messages ...kafka.Message) error
-	Close() error
-}
-
-// KafkaProducer is an interface for producing messages to Kafka.
+// KafkaProducer defines the interface for producing messages to Kafka.
 type KafkaProducer interface {
 	Produce(ctx context.Context, key []byte, value []byte) error
 	Close() error
 }
 
 type kafkaProducer struct {
-	writer writerInterface
+	writer *kafka.Writer
 	logger *zap.SugaredLogger
 	cb     *gobreaker.CircuitBreaker
 	topic  string
 }
 
+// NewKafkaProducer теперь возвращает KafkaProducer (интерфейс), а не *KafkaProducer.
 func NewKafkaProducer(ctx context.Context, cfg config.KafkaConfig, logger *zap.SugaredLogger) (KafkaProducer, error) {
 	// Circuit Breaker
 	cb := gobreaker.NewCircuitBreaker(gobreaker.Settings{
@@ -46,7 +41,7 @@ func NewKafkaProducer(ctx context.Context, cfg config.KafkaConfig, logger *zap.S
 		},
 	})
 
-	var writer writerInterface
+	var writer *kafka.Writer
 	brokerList := strings.Split(cfg.Brokers, ",")
 
 	for attempt := 1; attempt <= cfg.MaxRetries; attempt++ {
@@ -75,7 +70,7 @@ func NewKafkaProducer(ctx context.Context, cfg config.KafkaConfig, logger *zap.S
 			if attempt == cfg.MaxRetries {
 				return nil, fmt.Errorf("unable to initialize Kafka producer after %d attempts: %w", cfg.MaxRetries, err)
 			}
-			// Check for context cancellation
+			// Wait before the next attempt, respecting context cancellation
 			select {
 			case <-ctx.Done():
 				return nil, fmt.Errorf("Kafka producer creation canceled: %w", ctx.Err())
@@ -98,7 +93,7 @@ func NewKafkaProducer(ctx context.Context, cfg config.KafkaConfig, logger *zap.S
 		writer = nil
 
 		if attempt < cfg.MaxRetries {
-			// Check for context cancellation
+			// Wait before the next attempt, respecting context cancellation
 			select {
 			case <-ctx.Done():
 				return nil, fmt.Errorf("Kafka producer creation canceled: %w", ctx.Err())

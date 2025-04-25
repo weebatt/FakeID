@@ -9,7 +9,7 @@ RUN go mod download
 
 COPY . .
 
-RUN go build -o task-service ./cmd/task-service
+RUN go build -o template-service ./cmd/template-service
 
 FROM alpine:3.18
 
@@ -17,8 +17,8 @@ RUN apk add --no-cache ca-certificates
 
 WORKDIR /app
 
-COPY --from=builder /app/task-service .
+COPY --from=builder /app/template-service .
 
-EXPOSE 8080  
+EXPOSE 8081
 
-CMD ["./task-service"]
+CMD ["./template-service"]
