@@ -3,15 +3,27 @@ package services
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"net/http"
 	"strconv"
 	"task-service/internal/models"
 	"task-service/internal/repository"
 	"task-service/pkg/broker/kafka"
-	"task-service/pkg/db/redis"
 	"time"
 
 	"go.uber.org/zap"
 )
+
+// Добавляем интерфейсы для зависимостей
+type RedisClient interface {
+	Set(ctx context.Context, key string, value interface{}, expiration time.Duration) error
+	Get(ctx context.Context, key string) (string, error)
+	Close() error
+}
+
+type HTTPClient interface {
+	Do(req *http.Request) (*http.Response, error)
+}
 
 type TaskService interface {
 	CreateNewTask(ctx context.Context, task models.Task) (int64, error)
@@ -19,22 +31,60 @@ type TaskService interface {
 }
 
 type taskService struct {
-	repo   repository.TaskRepository
-	redis  *redis.Redis
-	kafka  *kafka.KafkaProducer
-	logger *zap.SugaredLogger
+	repo           repository.TaskRepository
+	redis          RedisClient
+	kafka          kafka.KafkaProducer
+	logger         *zap.SugaredLogger
+	templateClient HTTPClient
 }
 
-func NewTaskService(repo repository.TaskRepository, redis *redis.Redis, kafka *kafka.KafkaProducer, logger *zap.SugaredLogger) TaskService {
+func NewTaskService(
+	repo repository.TaskRepository,
+	redis RedisClient,
+	kafka kafka.KafkaProducer,
+	logger *zap.SugaredLogger,
+	templateClient HTTPClient,
+) TaskService {
 	return &taskService{
-		repo:   repo,
-		redis:  redis,
-		kafka:  kafka,
-		logger: logger,
+		repo:           repo,
+		redis:          redis,
+		kafka:          kafka,
+		logger:         logger,
+		templateClient: templateClient,
 	}
 }
 
 func (t *taskService) CreateNewTask(ctx context.Context, task models.Task) (int64, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("http://template-service:8082/template/%s", task.TemplateID), nil)
+	if err != nil {
+		t.logger.Errorf("Failed to create request to template-service: %v", err)
+		return 0, err
+	}
+
+	resp, err := t.templateClient.Do(req)
+	if err != nil {
+		t.logger.Errorf("Failed to fetch template %s: %v", task.TemplateID, err)
+		return 0, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.logger.Errorf("Template %s not found, status: %d", task.TemplateID, resp.StatusCode)
+		return 0, fmt.Errorf("template not found")
+	}
+
+	var template struct {
+		ID      string                 `json:"id"`
+		Name    string                 `json:"name"`
+		Content map[string]interface{} `json:"content"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&template); err != nil {
+		t.logger.Errorf("Failed to decode template response: %v", err)
+		return 0, err
+	}
+
+	task.Template = template.Content
+
 	id, err := t.repo.CreateNewTask(ctx, task)
 	if err != nil {
 		t.logger.Errorf("Failed to create task: %v", err)

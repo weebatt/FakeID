@@ -3,23 +3,31 @@ package kafka
 import (
 	"context"
 	"fmt"
+	"strings"
 	"task-service/internal/config"
 	"time"
 
-	"github.com/confluentinc/confluent-kafka-go/kafka"
+	"github.com/segmentio/kafka-go"
 	"github.com/sony/gobreaker"
 	"go.uber.org/zap"
 )
 
-type KafkaProducer struct {
-	Producer *kafka.Producer
-	logger   *zap.SugaredLogger
-	cb       *gobreaker.CircuitBreaker
-	topic    string
+// KafkaProducer defines the interface for producing messages to Kafka.
+type KafkaProducer interface {
+	Produce(ctx context.Context, key []byte, value []byte) error
+	Close() error
 }
 
-func NewKafkaProducer(ctx context.Context, cfg config.KafkaConfig, logger *zap.SugaredLogger) (*KafkaProducer, error) {
-	//Circuit Breaker
+type kafkaProducer struct {
+	writer *kafka.Writer
+	logger *zap.SugaredLogger
+	cb     *gobreaker.CircuitBreaker
+	topic  string
+}
+
+// NewKafkaProducer теперь возвращает KafkaProducer (интерфейс), а не *KafkaProducer.
+func NewKafkaProducer(ctx context.Context, cfg config.KafkaConfig, logger *zap.SugaredLogger) (KafkaProducer, error) {
+	// Circuit Breaker
 	cb := gobreaker.NewCircuitBreaker(gobreaker.Settings{
 		Name:        "kafka-producer",
 		MaxRequests: 1,
@@ -33,29 +41,36 @@ func NewKafkaProducer(ctx context.Context, cfg config.KafkaConfig, logger *zap.S
 		},
 	})
 
-	var producer *kafka.Producer
-	var err error
+	var writer *kafka.Writer
+	brokerList := strings.Split(cfg.Brokers, ",")
 
 	for attempt := 1; attempt <= cfg.MaxRetries; attempt++ {
-		// Проверяем отмену контекста перед попыткой
+		// Wait for context cancellation
 		select {
 		case <-ctx.Done():
 			return nil, fmt.Errorf("Kafka producer creation canceled: %w", ctx.Err())
 		default:
 		}
 
-		producer, err = kafka.NewProducer(&kafka.ConfigMap{
-			"bootstrap.servers": cfg.Brokers,
-			"acks":              "all",
-			"retries":           3,
-			"retry.backoff.ms":  1000,
-		})
+		// Create a new Kafka writer
+		writer = &kafka.Writer{
+			Addr:                   kafka.TCP(brokerList...),
+			Topic:                  cfg.Topic,
+			Balancer:               &kafka.LeastBytes{},
+			RequiredAcks:           kafka.RequireAll, // Equivalent to "acks": "all"
+			MaxAttempts:            3,                // Equivalent to "retries": 3
+			BatchTimeout:           1 * time.Second,  // Equivalent to "retry.backoff.ms": 1000
+			AllowAutoTopicCreation: true,
+		}
+
+		// Check connection by attempting to fetch metadata
+		conn, err := kafka.Dial("tcp", brokerList[0])
 		if err != nil {
 			logger.Warnf("Failed to create Kafka producer (attempt %d): %v", attempt, err)
 			if attempt == cfg.MaxRetries {
 				return nil, fmt.Errorf("unable to initialize Kafka producer after %d attempts: %w", cfg.MaxRetries, err)
 			}
-			// Ожидаем перед следующей попыткой с учетом контекста
+			// Wait before the next attempt, respecting context cancellation
 			select {
 			case <-ctx.Done():
 				return nil, fmt.Errorf("Kafka producer creation canceled: %w", ctx.Err())
@@ -64,8 +79,9 @@ func NewKafkaProducer(ctx context.Context, cfg config.KafkaConfig, logger *zap.S
 			continue
 		}
 
-		// Проверяем подключение
-		_, err = producer.GetMetadata(nil, true, int(time.Duration(cfg.Timeout)*time.Second/time.Millisecond))
+		// Fetch metadata to verify connection
+		_, err = conn.ReadPartitions(cfg.Topic)
+		conn.Close()
 		if err == nil {
 			logger.Infof("Kafka producer successfully connected on attempt %d", attempt)
 			break
@@ -73,11 +89,11 @@ func NewKafkaProducer(ctx context.Context, cfg config.KafkaConfig, logger *zap.S
 
 		logger.Warnf("Kafka metadata check failed (attempt %d): %v", attempt, err)
 
-		producer.Close()
-		producer = nil
+		writer.Close()
+		writer = nil
 
 		if attempt < cfg.MaxRetries {
-			// Ожидаем перед следующей попыткой с учетом контекста
+			// Wait before the next attempt, respecting context cancellation
 			select {
 			case <-ctx.Done():
 				return nil, fmt.Errorf("Kafka producer creation canceled: %w", ctx.Err())
@@ -86,46 +102,28 @@ func NewKafkaProducer(ctx context.Context, cfg config.KafkaConfig, logger *zap.S
 		}
 	}
 
-	if producer == nil {
+	if writer == nil {
 		return nil, fmt.Errorf("failed to establish Kafka connection after %d attempts", cfg.MaxRetries)
 	}
 
-	return &KafkaProducer{
-		Producer: producer,
-		logger:   logger,
-		cb:       cb,
-		topic:    cfg.Topic,
+	return &kafkaProducer{
+		writer: writer,
+		logger: logger,
+		cb:     cb,
+		topic:  cfg.Topic,
 	}, nil
 }
 
-func (k *KafkaProducer) Produce(ctx context.Context, key []byte, value []byte) error {
+func (k *kafkaProducer) Produce(ctx context.Context, key []byte, value []byte) error {
 	_, err := k.cb.Execute(func() (interface{}, error) {
-		deliveryChan := make(chan kafka.Event)
-		defer close(deliveryChan)
-
-		err := k.Producer.Produce(&kafka.Message{
-			TopicPartition: kafka.TopicPartition{Topic: &k.topic, Partition: -1},
-			Key:            key,
-			Value:          value,
-		}, deliveryChan)
+		err := k.writer.WriteMessages(ctx, kafka.Message{
+			Key:   key,
+			Value: value,
+		})
 		if err != nil {
 			return nil, err
 		}
-
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case e := <-deliveryChan:
-			switch ev := e.(type) {
-			case *kafka.Message:
-				if ev.TopicPartition.Error != nil {
-					return nil, ev.TopicPartition.Error
-				}
-				return nil, nil
-			default:
-				return nil, fmt.Errorf("unexpected event type: %T", e)
-			}
-		}
+		return nil, nil
 	})
 	if err != nil {
 		k.logger.Errorf("Circuit Breaker rejected Produce: %v", err)
@@ -133,14 +131,11 @@ func (k *KafkaProducer) Produce(ctx context.Context, key []byte, value []byte) e
 	return err
 }
 
-func (k *KafkaProducer) Close() error {
-	if k.Producer != nil {
-		remaining := k.Producer.Flush(5000)
-		k.Producer.Close()
+func (k *kafkaProducer) Close() error {
+	if k.writer != nil {
+		err := k.writer.Close()
 		k.logger.Info("Kafka producer connection closed")
-		if remaining > 0 {
-			return fmt.Errorf("failed to flush %d messages before closing Kafka producer", remaining)
-		}
+		return err
 	}
 	return nil
 }

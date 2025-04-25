@@ -78,8 +78,11 @@ func main() {
 	//init repositories
 	taskRepository := repository.NewTaskRepository(pgClient, log.SugaredLogger)
 
+	//init clients
+	templateClient := &http.Client{Timeout: 5 * time.Second}
+
 	//init services
-	taskService := services.NewTaskService(taskRepository, redisClient, kafkaClient, log.SugaredLogger)
+	taskService := services.NewTaskService(taskRepository, redisClient, kafkaClient, log.SugaredLogger, templateClient)
 
 	//init handlers
 	taskHandler := handlers.NewTaskHandler(taskService, log.SugaredLogger)
