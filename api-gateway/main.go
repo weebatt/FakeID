@@ -99,7 +99,7 @@ func main() {
 	router := mux.NewRouter()
 
 	// Эндпоинты для Auth Service (без JWT)
-	router.HandleFunc("/api/auth/register", func(w http.ResponseWriter, r *http.Request) {
+	router.HandleFunc("/api/v1/register", func(w http.ResponseWriter, r *http.Request) {
 		body, _ := ioutil.ReadAll(r.Body)
 		resp, err := proxyRequest(client, config.AuthServiceURL+"/register", r.Method, body)
 		if err != nil {
@@ -113,7 +113,7 @@ func main() {
 		json.NewEncoder(w).Encode(NewAPIResponse("success", result, ""))
 	}).Methods("POST")
 
-	router.HandleFunc("/api/auth/login", func(w http.ResponseWriter, r *http.Request) {
+	router.HandleFunc("/api/v1/login", func(w http.ResponseWriter, r *http.Request) {
 		body, _ := ioutil.ReadAll(r.Body)
 		resp, err := proxyRequest(client, config.AuthServiceURL+"/login", r.Method, body)
 		if err != nil {
