@@ -3,12 +3,20 @@ package repository
 import (
 	"context"
 	"task-service/internal/models"
-	"task-service/pkg/db/postgres"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"go.uber.org/zap"
 )
+
+// DB — интерфейс для методов базы данных, используемых postgresTaskRepository.
+type DB interface {
+	QueryRow(ctx context.Context, sql string, args ...interface{}) pgx.Row
+	Exec(ctx context.Context, sql string, args ...interface{}) error
+	Ping(ctx context.Context) error
+	Close()
+}
 
 type TaskRepository interface {
 	CreateNewTask(ctx context.Context, task models.Task) (int64, error)
@@ -16,12 +24,12 @@ type TaskRepository interface {
 }
 
 type postgresTaskRepository struct {
-	db     *postgres.DB
+	db     DB
 	logger *zap.SugaredLogger
 }
 
-func NewTaskRepository(pool *postgres.DB, logger *zap.SugaredLogger) *postgresTaskRepository {
-	return &postgresTaskRepository{db: pool, logger: logger}
+func NewTaskRepository(db DB, logger *zap.SugaredLogger) *postgresTaskRepository {
+	return &postgresTaskRepository{db: db, logger: logger}
 }
 
 func (r *postgresTaskRepository) CreateNewTask(ctx context.Context, task models.Task) (int64, error) {

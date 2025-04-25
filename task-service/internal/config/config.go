@@ -8,18 +8,18 @@ import (
 )
 
 type HTTPServer struct {
-	Host       string `yaml:"host" env:"HOST" env-default:"localhost" validate:"required"`
+	Host       string `yaml:"host" env:"HOST" validate:"required"`
 	Port       string `yaml:"port" env:"PORT" env-default:"8080" validate:"required,numeric"`
 	MaxRetries int    `yaml:"max_retries" env:"MAX_RETRIES" env-default:"5" validate:"gte=1"`
 	RetryDelay int    `yaml:"retry_delay" env:"RETRY_DELAY" env-default:"5" validate:"gte=1"`
 }
 
 type PostgresConfig struct {
-	Host       string `yaml:"host" env:"PG_HOST" env-default:"localhost" validate:"required"`
+	Host       string `yaml:"host" env:"PG_HOST" validate:"required"`
 	Port       string `yaml:"port" env:"PG_PORT" env-default:"5432" validate:"required,numeric"`
 	User       string `yaml:"user" env:"PG_USER" env-default:"postgres" validate:"required"`
 	Password   string `yaml:"password" env:"PG_PASSWORD" env-default:""`
-	DBName     string `yaml:"dbname" env:"PG_DBNAME" env-default:"postgres" validate:"required"`
+	DBName     string `yaml:"dbname" env:"PG_DBNAME" validate:"required"`
 	SSLMode    string `yaml:"sslmode" env:"PG_SSLMODE" env-default:"disable" validate:"oneof=disable require"`
 	MaxConns   int32  `yaml:"max_conns" env:"PG_MAX_CONNS" env-default:"50" validate:"gte=1"`
 	MinConns   int32  `yaml:"min_conns" env:"PG_MIN_CONNS" env-default:"10" validate:"gte=1"`
@@ -29,16 +29,18 @@ type PostgresConfig struct {
 }
 
 type RedisConfig struct {
-	Host       string `yaml:"host" env:"REDIS_HOST" env-default:"localhost" validate:"required"`
+	Host       string `yaml:"host" env:"REDIS_HOST" validate:"required"`
 	Port       string `yaml:"port" env:"REDIS_PORT" env-default:"6379" validate:"required,numeric"`
+	Password   string `yaml:"password" env:"REDIS_PASSWORD" env-default:""`
+	DB         int    `yaml:"db" env:"REDIS_DB" env-default:"0" validate:"gte=0"`
 	Timeout    int    `yaml:"timeout" env:"REDIS_TIMEOUT" env-default:"5" validate:"gte=1"`
 	MaxRetries int    `yaml:"max_retries" env:"REDIS_MAX_RETRIES" env-default:"5" validate:"gte=1"`
 	RetryDelay int    `yaml:"retry_delay" env:"REDIS_RETRY_DELAY" env-default:"3" validate:"gte=1"`
 }
 
 type KafkaConfig struct {
-	Brokers    string `yaml:"brokers" env:"KAFKA_BROKERS" env-default:"kafka:9092" validate:"required"`
-	Topic      string `yaml:"topic" env:"KAFKA_TOPIC" env-default:"tasks" validate:"required"`
+	Brokers    string `yaml:"brokers" env:"KAFKA_BROKERS" validate:"required"`
+	Topic      string `yaml:"topic" env:"KAFKA_TOPIC" validate:"required"`
 	MaxRetries int    `yaml:"max_retries" env:"KAFKA_MAX_RETRIES" env-default:"5" validate:"gte=1"`
 	RetryDelay int    `yaml:"retry_delay" env:"KAFKA_RETRY_DELAY" env-default:"3" validate:"gte=1"`
 	Timeout    int    `yaml:"timeout" env:"KAFKA_TIMEOUT" env-default:"5" validate:"gte=1"`
