@@ -27,6 +27,7 @@
               v-model="form.password"
               placeholder="Enter your password"
               @input="clearError('password')"
+              @keyup.enter="login"
           />
           <p class="error-message" v-if="errors.password">{{ errors.password }}</p>
         </div>
@@ -58,6 +59,8 @@
 </template>
 
 <script>
+import authStore from '../store/auth';
+
 export default {
   name: 'Login',
   data() {
@@ -76,7 +79,7 @@ export default {
     }
   },
   methods: {
-    login() {
+    async login() {
       // Reset errors
       this.errors = {
         email: '',
@@ -105,27 +108,16 @@ export default {
       // Set loading state
       this.isLoading = true;
 
-      // Simulate API call
-      setTimeout(() => {
-        // For demo purposes, let's simulate a successful login
-        if (this.form.email === 'demo@example.com' && this.form.password === 'password') {
-          // Store user info in localStorage or Vuex store
-          localStorage.setItem('user', JSON.stringify({
-            id: 1,
-            email: this.form.email,
-            name: 'Demo User',
-            token: 'fake-jwt-token'
-          }));
-
-          // Redirect to dashboard
-          this.$router.push('/');
-        } else {
-          // Show error
-          this.authError = 'Invalid email or password';
-        }
-
+      try {
+        // Use the auth store to login (which uses the authService)
+        await authStore.login(this.form.email, this.form.password, this.form.remember);
+        // If successful, the auth store will redirect to home page
+      } catch (error) {
+        // Show error from the API
+        this.authError = error.message || 'Login failed. Please try again.';
+      } finally {
         this.isLoading = false;
-      }, 1000);
+      }
     },
     validateEmail(email) {
       const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -135,8 +127,27 @@ export default {
       this.errors[field] = '';
       this.authError = '';
     },
-    forgotPassword() {
-      alert('Password reset functionality would be implemented here');
+    async forgotPassword() {
+      if (!this.form.email) {
+        this.errors.email = 'Email is required for password reset';
+        return;
+      }
+
+      if (!this.validateEmail(this.form.email)) {
+        this.errors.email = 'Please enter a valid email';
+        return;
+      }
+
+      this.isLoading = true;
+
+      try {
+        await authStore.forgotPassword(this.form.email);
+        alert('Password reset instructions have been sent to your email.');
+      } catch (error) {
+        this.authError = error.message || 'Failed to send reset link. Please try again.';
+      } finally {
+        this.isLoading = false;
+      }
     }
   }
 }

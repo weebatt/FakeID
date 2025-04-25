@@ -1,62 +1,92 @@
-// This would normally connect to your backend API
+// services/authService.js - Обновлен для работы через API Gateway
+
+const API_URL = '/api/auth'; // Относительный путь, который будет проксироваться через Nginx
 
 const authService = {
-    // Simulate login API call
+    // Авторизация через API Gateway
     async login(email, password) {
-        return new Promise((resolve, reject) => {
-            setTimeout(() => {
-                // For demo purposes
-                if (email === 'demo@example.com' && password === 'password') {
-                    resolve({
-                        id: 1,
-                        name: 'Demo User',
-                        email: 'demo@example.com',
-                        token: 'fake-jwt-token'
-                    });
-                } else {
-                    reject(new Error('Invalid email or password'));
-                }
-            }, 1000);
-        });
+        try {
+            const response = await fetch(`${API_URL}/login`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ email, password })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Ошибка входа');
+            }
+
+            const data = await response.json();
+            return data.data; // API Gateway оборачивает ответ в поле data
+        } catch (error) {
+            throw error;
+        }
     },
 
-    // Simulate register API call
+    // Регистрация через API Gateway
     async register(name, email, password) {
-        return new Promise((resolve, reject) => {
-            setTimeout(() => {
-                // For demo purposes, check if email already exists
-                if (email === 'demo@example.com') {
-                    reject(new Error('This email is already registered'));
-                } else {
-                    resolve({
-                        id: Math.floor(Math.random() * 1000) + 2, // Random ID
-                        name,
-                        email,
-                        token: 'fake-jwt-token'
-                    });
-                }
-            }, 1500);
-        });
+        try {
+            const response = await fetch(`${API_URL}/register`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ name, email, password })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Ошибка регистрации');
+            }
+
+            const data = await response.json();
+            return data.data;
+        } catch (error) {
+            throw error;
+        }
     },
 
-    // Simulate forgot password API call
+    // Восстановление пароля через API Gateway
     async forgotPassword(email) {
-        return new Promise((resolve) => {
-            setTimeout(() => {
-                // Always succeed for demo purposes
-                resolve(true);
-            }, 1500);
-        });
+        try {
+            const response = await fetch(`${API_URL}/forgot-password`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ email })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Не удалось отправить ссылку для сброса пароля');
+            }
+
+            const data = await response.json();
+            return data.data;
+        } catch (error) {
+            throw error;
+        }
     },
 
-    // Verify token validity
+    // Проверка токена с использованием заголовка Authentication
     async verifyToken(token) {
-        return new Promise((resolve) => {
-            setTimeout(() => {
-                // For demo purposes, any token is valid
-                resolve(true);
-            }, 500);
-        });
+        try {
+            const response = await fetch(`${API_URL}/verify-token`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                }
+            });
+
+            return response.ok;
+        } catch (error) {
+            return false;
+        }
     }
 };
 

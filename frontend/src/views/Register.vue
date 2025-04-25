@@ -51,17 +51,9 @@
               v-model="form.confirmPassword"
               placeholder="Confirm your password"
               @input="clearError('confirmPassword')"
+              @keyup.enter="register"
           />
           <p class="error-message" v-if="errors.confirmPassword">{{ errors.confirmPassword }}</p>
-        </div>
-
-        <div class="terms-agreement">
-          <input type="checkbox" id="termsAgree" v-model="form.termsAgree" />
-          <label for="termsAgree">
-            I agree to the <a href="#" @click.prevent="showTerms">Terms of Service</a> and
-            <a href="#" @click.prevent="showPrivacy">Privacy Policy</a>
-          </label>
-          <p class="error-message" v-if="errors.termsAgree">{{ errors.termsAgree }}</p>
         </div>
 
         <button
@@ -69,7 +61,7 @@
             @click="register"
             :disabled="isLoading"
         >
-          {{ isLoading ? 'Creating Account...' : 'Create Account' }}
+          {{ isLoading ? 'Creating account...' : 'Sign Up' }}
         </button>
 
         <p class="auth-error" v-if="authError">{{ authError }}</p>
@@ -83,6 +75,8 @@
 </template>
 
 <script>
+import authStore from '../store/auth';
+
 export default {
   name: 'Register',
   data() {
@@ -91,29 +85,26 @@ export default {
         name: '',
         email: '',
         password: '',
-        confirmPassword: '',
-        termsAgree: false
+        confirmPassword: ''
       },
       errors: {
         name: '',
         email: '',
         password: '',
-        confirmPassword: '',
-        termsAgree: ''
+        confirmPassword: ''
       },
       authError: '',
       isLoading: false
     }
   },
   methods: {
-    register() {
+    async register() {
       // Reset errors
       this.errors = {
         name: '',
         email: '',
         password: '',
-        confirmPassword: '',
-        termsAgree: ''
+        confirmPassword: ''
       };
       this.authError = '';
 
@@ -136,8 +127,8 @@ export default {
       if (!this.form.password) {
         this.errors.password = 'Password is required';
         isValid = false;
-      } else if (this.form.password.length < 8) {
-        this.errors.password = 'Password must be at least 8 characters';
+      } else if (this.form.password.length < 6) {
+        this.errors.password = 'Password must be at least 6 characters';
         isValid = false;
       }
 
@@ -149,36 +140,25 @@ export default {
         isValid = false;
       }
 
-      if (!this.form.termsAgree) {
-        this.errors.termsAgree = 'You must agree to the terms and privacy policy';
-        isValid = false;
-      }
-
       if (!isValid) return;
 
       // Set loading state
       this.isLoading = true;
 
-      // Simulate API call
-      setTimeout(() => {
-        // For demo purposes, check if email already exists
-        if (this.form.email === 'demo@example.com') {
-          this.authError = 'This email is already registered';
-        } else {
-          // Store user info (in a real app, this would be done after API confirmation)
-          localStorage.setItem('user', JSON.stringify({
-            id: 2,
-            email: this.form.email,
-            name: this.form.name,
-            token: 'fake-jwt-token'
-          }));
-
-          // Redirect to dashboard
-          this.$router.push('/');
-        }
-
+      try {
+        // Use the auth store to register (which uses the authService)
+        await authStore.register(
+            this.form.name,
+            this.form.email,
+            this.form.password
+        );
+        // If successful, the auth store will redirect to home page
+      } catch (error) {
+        // Show error from the API
+        this.authError = error.message || 'Registration failed. Please try again.';
+      } finally {
         this.isLoading = false;
-      }, 1500);
+      }
     },
     validateEmail(email) {
       const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -187,12 +167,6 @@ export default {
     clearError(field) {
       this.errors[field] = '';
       this.authError = '';
-    },
-    showTerms() {
-      alert('Terms of Service would be shown here');
-    },
-    showPrivacy() {
-      alert('Privacy Policy would be shown here');
     }
   }
 }
@@ -252,19 +226,6 @@ export default {
   color: #f44336;
   font-size: 12px;
   margin-top: 4px;
-}
-
-.terms-agreement {
-  display: flex;
-  align-items: flex-start;
-  margin-bottom: 24px;
-  font-size: 14px;
-}
-
-.terms-agreement input {
-  width: auto;
-  margin-right: 8px;
-  margin-top: 3px;
 }
 
 .auth-button {
