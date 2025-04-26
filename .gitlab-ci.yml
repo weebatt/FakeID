@@ -1,0 +1,32 @@
+stages:
+  - build
+  - test
+
+image: golang:1.22
+
+build_job:
+  stage: build
+  script:
+    - go build -o myapp ./...
+  artifacts:
+    paths:
+      - myapp
+
+test_job:
+  stage: test
+  script:
+    - go test -v -coverprofile=coverage.out ./...
+    - go tool cover -func=coverage.out | grep total | awk '{print $3}' > coverage.txt
+    - COVERAGE=$(cat coverage.txt | sed 's/%//')
+    - MIN_COVERAGE=80
+    - |
+      if (( $(echo "$COVERAGE < $MIN_COVERAGE" | bc -l) )); then
+        echo "Ошибка: Покрытие тестами $COVERAGE% ниже порога $MIN_COVERAGE%"
+        exit 1
+      else
+        echo "Покрытие тестами $COVERAGE% соответствует порогу $MIN_COVERAGE%"
+      fi
+  artifacts:
+    paths:
+      - coverage.out
+    expire_in: 1 week

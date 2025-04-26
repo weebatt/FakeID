@@ -28,6 +28,7 @@ type HTTPClient interface {
 type TaskService interface {
 	CreateNewTask(ctx context.Context, task models.Task) (int64, error)
 	GetTaskByID(ctx context.Context, id int64) (*models.Task, error)
+	ListTasks(ctx context.Context, filter models.TaskFilter) ([]models.Task, error)
 }
 
 type taskService struct {
@@ -142,4 +143,44 @@ func (t *taskService) GetTaskByID(ctx context.Context, id int64) (*models.Task, 
 
 	t.logger.Infof("Task retrieved with ID: %d", id)
 	return task, nil
+}
+
+func (t *taskService) ListTasks(ctx context.Context, filter models.TaskFilter) ([]models.Task, error) {
+	// First try to get cached results if the filter is simple
+	if filter.IsCacheable() {
+		cacheKey := fmt.Sprintf("tasks:%s:%s:%s:%d:%d",
+			filter.UserID, filter.Type, filter.Status, filter.Page, filter.Limit)
+
+		cachedData, err := t.redis.Get(ctx, cacheKey)
+		if err == nil {
+			var tasks []models.Task
+			if err := json.Unmarshal([]byte(cachedData), &tasks); err == nil {
+				t.logger.Debugf("Tasks found in Redis cache for key: %s", cacheKey)
+				return tasks, nil
+			}
+		}
+	}
+
+	// If not in cache or not cacheable, get from database
+	tasks, err := t.repo.ListTasks(ctx, filter)
+	if err != nil {
+		t.logger.Errorf("Failed to list tasks: %v", err)
+		return nil, err
+	}
+
+	// Cache results if appropriate
+	if filter.IsCacheable() && len(tasks) > 0 {
+		cacheKey := fmt.Sprintf("tasks:%s:%s:%s:%d:%d",
+			filter.UserID, filter.Type, filter.Status, filter.Page, filter.Limit)
+
+		tasksData, err := json.Marshal(tasks)
+		if err == nil {
+			if err := t.redis.Set(ctx, cacheKey, tasksData, 5*time.Minute); err != nil {
+				t.logger.Warnf("Failed to cache tasks: %v", err)
+			}
+		}
+	}
+
+	t.logger.Infof("Retrieved %d tasks", len(tasks))
+	return tasks, nil
 }

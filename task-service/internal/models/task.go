@@ -24,3 +24,17 @@ type CreateTaskRequest struct {
 	Amount     int                    `json:"amount" validate:"required,gte=1"`
 	Format     string                 `json:"format" validate:"required,oneof=json csv sql"`
 }
+
+type TaskFilter struct {
+	UserID string
+	Type   string
+	Status string
+	Page   int
+	Limit  int
+}
+
+// IsCacheable determines if the filter results should be cached
+func (f TaskFilter) IsCacheable() bool {
+	// Only cache results for specific filters, not general listings
+	return f.UserID != "" || f.Type != "" || f.Status != ""
+}

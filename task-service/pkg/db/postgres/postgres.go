@@ -79,6 +79,10 @@ func (db *DB) Ping(ctx context.Context) error {
 	return err
 }
 
+func (db *DB) Query(ctx context.Context, sql string, args ...interface{}) (pgx.Rows, error) {
+	return db.pool.Query(ctx, sql, args...)
+}
+
 func (db *DB) QueryRow(ctx context.Context, sql string, args ...interface{}) pgx.Row {
 	result, err := db.cb.Execute(func() (interface{}, error) {
 		return db.pool.QueryRow(ctx, sql, args...), nil
