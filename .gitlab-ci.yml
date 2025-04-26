@@ -14,15 +14,6 @@ build_auth_service:
       - auth-service/auth-service
     expire_in: 1 week
 
-build_frontend:
-  stage: build
-  script:
-    - cd frontend
-    - npm install
-    - npm run build
-  artifacts:
-    expire_in: 1 week
-
 build_task_service:
   stage: build
   script:
