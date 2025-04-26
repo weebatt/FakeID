@@ -2,7 +2,7 @@ stages:
   - build
   - test
 
-image: golang:1.22
+image: golang:1.24
 
 build_job:
   stage: build
