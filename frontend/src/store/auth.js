@@ -22,7 +22,7 @@ const initState = () => {
             state.token = storedToken;
             state.isAuthenticated = true;
         } catch (e) {
-            localStorage.removeItem('user');
+            // localStorage.removeItem('user');
             localStorage.removeItem('token');
         }
     }
@@ -39,7 +39,7 @@ const actions = {
             console.log('Login response:', response);
 
             // Проверяем, что response содержит user и token
-            if (!response || !response.user || !response.token) {
+            if (!response || !response.token) {
                 throw new Error('Invalid response from server: missing user or token');
             }
 
@@ -47,7 +47,7 @@ const actions = {
             state.token = response.token;
             state.isAuthenticated = true;
 
-            localStorage.setItem('user', JSON.stringify(response.user));
+            // localStorage.setItem('user', JSON.stringify(response.user));
             localStorage.setItem('token', response.token);
 
             if (remember) {
@@ -74,7 +74,7 @@ const actions = {
             console.log('Register response:', response);
 
             // Проверяем, что response содержит user и token
-            if (!response || !response.user || !response.token) {
+            if (!response || !response.token) {
                 throw new Error('Invalid response from server: missing user or token');
             }
 
@@ -82,7 +82,7 @@ const actions = {
             state.token = response.token;
             state.isAuthenticated = true;
 
-            localStorage.setItem('user', JSON.stringify(response.user));
+            // localStorage.setItem('user', JSON.stringify(response.user));
             localStorage.setItem('token', response.token);
 
             router.push('/');
@@ -96,15 +96,15 @@ const actions = {
         }
     },
 
-    logout() {
-        state.user = null;
-        state.token = null;
-        state.isAuthenticated = false;
-        localStorage.removeItem('user');
-        localStorage.removeItem('token');
-        localStorage.removeItem('rememberMe');
-        router.push('/login');
-    },
+    // logout() {
+    //     state.user = null;
+    //     state.token = null;
+    //     state.isAuthenticated = false;
+    //     localStorage.removeItem('user');
+    //     localStorage.removeItem('token');
+    //     localStorage.removeItem('rememberMe');
+    //     router.push('/login');
+    // },
 
     clearError() {
         state.error = null;

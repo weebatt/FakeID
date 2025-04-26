@@ -11,5 +11,6 @@ func SetupTaskRoutes(router *echo.Echo, taskHandler *handlers.TaskHandler) {
 	{
 		api.POST("", taskHandler.CreateNewTask)
 		api.GET("/:id", taskHandler.GetTaskByID)
+		api.GET("", taskHandler.ListTasks)
 	}
 }

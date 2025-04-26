@@ -16,6 +16,7 @@ import (
 type TaskService interface {
 	CreateNewTask(ctx context.Context, task models.Task) (int64, error)
 	GetTaskByID(ctx context.Context, id int64) (*models.Task, error)
+	ListTasks(ctx context.Context, filter models.TaskFilter) ([]models.Task, error)
 }
 
 type TaskHandler struct {
@@ -84,4 +85,55 @@ func (t *TaskHandler) GetTaskByID(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, task)
+}
+
+func (t *TaskHandler) ListTasks(c echo.Context) error {
+	ctx := c.Request().Context()
+	logger := middleware.GetLoggerFromCtx(ctx)
+
+	// Get query parameters for filtering
+	userID := c.QueryParam("user_id")
+	taskType := c.QueryParam("type")
+	status := c.QueryParam("status")
+
+	// Extract pagination parameters
+	page, _ := strconv.Atoi(c.QueryParam("page"))
+	if page <= 0 {
+		page = 1
+	}
+
+	limit, _ := strconv.Atoi(c.QueryParam("limit"))
+	if limit <= 0 || limit > 100 {
+		limit = 10 // Default limit
+	}
+
+	// Log the request details
+	logger.Infow("Listing tasks",
+		"user_id", userID,
+		"type", taskType,
+		"status", status,
+		"page", page,
+		"limit", limit,
+	)
+
+	// Retrieve tasks from the service
+	tasks, err := t.service.ListTasks(ctx, models.TaskFilter{
+		UserID: userID,
+		Type:   taskType,
+		Status: status,
+		Page:   page,
+		Limit:  limit,
+	})
+
+	if err != nil {
+		logger.Errorw("Failed to list tasks", "error", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to retrieve tasks"})
+	}
+
+	// Return the list of tasks
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"data":  tasks,
+		"page":  page,
+		"limit": limit,
+	})
 }
