@@ -37,7 +37,7 @@
             <input type="checkbox" id="remember" v-model="form.remember" />
             <label for="remember">Remember me</label>
           </div>
-          <a href="#" @click.prevent="forgotPassword">Forgot password?</a>
+          <a href="#" @click.prevent="forgotPassword"></a>
         </div>
 
         <button

@@ -34,7 +34,6 @@ build_template_service:
       - template-service/template-service
     expire_in: 1 week
 
-# Тестирование и проверка покрытия для auth-service
 test_auth_service:
   stage: test
   script:
