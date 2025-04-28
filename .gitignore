@@ -1,0 +1,11 @@
+#dirs
+.idea
+*/.vscode
+/api-gateway/nginx/certs/
+/frontend/node_modules/*
+
+
+#files
+.env
+.DS_Store
+/api-gateway/nginx/certs/*
