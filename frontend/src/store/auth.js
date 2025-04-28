@@ -1,9 +1,7 @@
-// store/auth.js
 import { reactive } from 'vue';
 import router from '../router';
 import authService from '../services/authService';
 
-// Create a reactive store
 const state = reactive({
     user: null,
     token: null,
@@ -12,7 +10,6 @@ const state = reactive({
     error: null
 });
 
-// Initialize state from localStorage
 const initState = () => {
     const storedUser = localStorage.getItem('user');
     const storedToken = localStorage.getItem('token');
@@ -38,7 +35,6 @@ const actions = {
             const response = await authService.login(email, password);
             console.log('Login response:', response);
 
-            // Проверяем, что response содержит user и token
             if (!response || !response.token) {
                 throw new Error('Invalid response from server: missing user or token');
             }
@@ -47,7 +43,6 @@ const actions = {
             state.token = response.token;
             state.isAuthenticated = true;
 
-            // localStorage.setItem('user', JSON.stringify(response.user));
             localStorage.setItem('token', response.token);
 
             if (remember) {
@@ -73,7 +68,6 @@ const actions = {
             const response = await authService.register(name, email, password);
             console.log('Register response:', response);
 
-            // Проверяем, что response содержит user и token
             if (!response || !response.token) {
                 throw new Error('Invalid response from server: missing user or token');
             }
@@ -82,7 +76,6 @@ const actions = {
             state.token = response.token;
             state.isAuthenticated = true;
 
-            // localStorage.setItem('user', JSON.stringify(response.user));
             localStorage.setItem('token', response.token);
 
             router.push('/');
