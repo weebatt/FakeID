@@ -8,11 +8,12 @@ import (
 	"auth-service/pkg/logger"
 	"context"
 	"database/sql"
-	"github.com/golang-jwt/jwt/v5"
-	"github.com/labstack/echo/v4"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/labstack/echo/v4"
 )
 
 type AuthHandler struct {

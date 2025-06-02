@@ -10,7 +10,7 @@ const authService = {
 
         if (!response.ok) {
             const err = await response.json();
-            throw new Error(err.error || 'Ошибка входа');
+            throw new Error(err.error);
         }
 
         const data = await response.json();
@@ -40,20 +40,17 @@ const authService = {
 
         if (!response.ok) {
             const err = await response.json();
-            throw new Error(err.error || 'Ошибка регистрации');
+            throw new Error(err.error);
         }
 
         const data = await response.json();
         console.log('Register response data:', data);
 
-        const user = data.user ?? data.data?.user;
-        const token = data.token ?? data.data?.token;
+        const message = data.message ?? data.data?.message;
+        const user_id = data.user_id ?? data.data?.user_id;
+        const ok = response.ok;
 
-        if (!token) {
-            throw new Error('Response missing user or token');
-        }
-
-        return { user, token };
+        return { message, user_id, ok };
     }
 };
 
