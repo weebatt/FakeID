@@ -68,18 +68,15 @@ const actions = {
             const response = await authService.register(name, email, password);
             console.log('Register response:', response);
 
-            if (!response || !response.token) {
-                throw new Error('Invalid response from server: missing user or token');
+            if (!response.ok) {
+                throw new Error('Invalid response from server');
             }
 
-            state.user = response.user;
-            state.token = response.token;
-            state.isAuthenticated = true;
-
-            localStorage.setItem('token', response.token);
+            state.message = response.message;
+            state.user_id = response.user_id;
 
             router.push('/');
-            return response.user;
+            return response.message;
         } catch (error) {
             console.error('Register error:', error);
             state.error = error.message || 'Registration failed';
@@ -88,16 +85,6 @@ const actions = {
             state.isLoading = false;
         }
     },
-
-    // logout() {
-    //     state.user = null;
-    //     state.token = null;
-    //     state.isAuthenticated = false;
-    //     localStorage.removeItem('user');
-    //     localStorage.removeItem('token');
-    //     localStorage.removeItem('rememberMe');
-    //     router.push('/login');
-    // },
 
     clearError() {
         state.error = null;
