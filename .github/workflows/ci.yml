@@ -1,0 +1,56 @@
+# This workflow will build a golang project
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-go
+
+name: Go
+
+on:
+  push:
+    branches: [ "main", "main-develop" ]
+  pull_request:
+    branches: [ "main", "main-develop" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Build auth-service
+        run: |
+          cd auth-service
+          go build -o auth-service ./cmd/main.go
+      - name: Upload auth-service artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: auth-service
+          path: auth-service/auth-service
+          retention-days: 7
+
+      - name: Build task-service
+        run: |
+          cd task-service
+          go build -o task-service ./cmd
+      - name: Upload task-service artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: task-service
+          path: task-service/task-service
+          retention-days: 7
+
+      - name: Build template-service
+        run: |
+          cd task-service
+          go build -o template-service ./cmd
+      - name: Upload template-service artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: template-service
+          path: template-service/template-service
+          retention-days: 7
