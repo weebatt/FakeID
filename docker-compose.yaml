@@ -74,7 +74,7 @@ services:
   api-gateway:
     image: nginx:latest
     ports:
-      - "443:443"
+      - "26200:26200"
     volumes:
       - ./api-gateway/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./api-gateway/nginx/certs:/etc/nginx/certs:ro
