@@ -2,7 +2,6 @@ package config
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/ilyakaznacheev/cleanenv"
@@ -57,17 +56,6 @@ type Config struct {
 
 func New() (*Config, error) {
 	var cfg Config
-
-	configPath := os.Getenv("CONFIG_PATH")
-	if configPath == "" {
-		configPath = "./config/.env" // Значение по умолчанию
-	}
-
-	if _, err := os.Stat(configPath); err == nil {
-		if err := cleanenv.ReadConfig(configPath, &cfg); err != nil {
-			return nil, fmt.Errorf("failed to read config from file %s: %w", configPath, err)
-		}
-	}
 
 	if err := cleanenv.ReadEnv(&cfg); err != nil {
 		return nil, fmt.Errorf("failed to read config from env: %w", err)
