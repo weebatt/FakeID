@@ -1,9 +1,10 @@
 package handlers
 
 import (
-	database "auth-service/internal/postgres"
-	"auth-service/internal/redis"
 	"auth-service/internal/utils"
+	database "auth-service/pkg/db/postgres"
+	"auth-service/pkg/db/redis"
+	"auth-service/pkg/logger"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -17,22 +18,47 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupAuth(t *testing.T) (*AuthHandler, sqlmock.Sqlmock, *echo.Echo) {
+type MockLogger struct {
+	Calls []LogCall
+}
+
+type LogCall struct {
+	Level string
+	Msg   string
+	Args  []interface{}
+}
+
+func (m *MockLogger) Info(msg string, keysAndValues ...interface{}) {
+	m.Calls = append(m.Calls, LogCall{Level: "Info", Msg: msg, Args: keysAndValues})
+}
+
+func (m *MockLogger) Warn(msg string, keysAndValues ...interface{}) {
+	m.Calls = append(m.Calls, LogCall{Level: "Warn", Msg: msg, Args: keysAndValues})
+}
+
+func (m *MockLogger) Error(msg string, keysAndValues ...interface{}) {
+	m.Calls = append(m.Calls, LogCall{Level: "Error", Msg: msg, Args: keysAndValues})
+}
+
+func setupAuth(t *testing.T) (*AuthHandler, sqlmock.Sqlmock, *echo.Echo, *MockLogger) {
 	sqlDB, mock, err := sqlmock.New()
 	require.NoError(t, err)
 
 	mock.ExpectPing()
 
+	mockLogger := &MockLogger{}
+	logger := &logger.Logger{}
+
 	db := &database.Database{DB: sqlDB}
 	rd, _ := redis.NewRedis("localhost:6379", "", 0) // real Redis не нужен: только client.Set/Del/Get
-	ah := NewAuthHandler(db, rd, []byte("secret"), time.Hour)
+	ah := NewAuthHandler(db, rd, []byte("secret"), time.Hour, logger)
 
 	e := echo.New()
-	return ah, mock, e
+	return ah, mock, e, mockLogger
 }
 
 func TestRegister_Success(t *testing.T) {
-	ah, mock, e := setupAuth(t)
+	ah, mock, e, _ := setupAuth(t)
 
 	mock.ExpectQuery(`SELECT EXISTS`).
 		WithArgs("alice@mail.com").
@@ -63,7 +89,7 @@ func TestRegister_Success(t *testing.T) {
 }
 
 func TestLogin_Success(t *testing.T) {
-	ah, mock, e := setupAuth(t)
+	ah, mock, e, _ := setupAuth(t)
 
 	plaintext := "P@ssw0rd!"
 	hash, _ := utils.HashPassword(plaintext)
